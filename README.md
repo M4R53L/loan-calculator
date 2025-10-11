@@ -87,16 +87,16 @@ From the original spreadsheet:
 
 
 # Project Structure
-loan_calculator/
-├── README.md
-├── lib
-│   ├── main.dart
-│   ├── models
-│   │   └── loan_result.dart
-│   ├── screens
-│   │   └── calculator_screen.dart
-│   └── services
-│       └── loan_calculator.dart
-├── pubspec.yaml
-└── test
-    └── loan_calculator_test.dart
+                loan_calculator/
+                ├── README.md
+                ├── lib
+                │   ├── main.dart
+                │   ├── models
+                │   │   └── loan_result.dart
+                │   ├── screens
+                │   │   └── calculator_screen.dart
+                │   └── services
+                │       └── loan_calculator.dart
+                ├── pubspec.yaml
+                └── test
+                └── loan_calculator_test.dart
