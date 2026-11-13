@@ -50,6 +50,17 @@
                ReferencedContainer = "container:LoanCalculator.xcodeproj">
             </BuildableReference>
          </TestableReference>
+         <TestableReference
+            skipped = "NO"
+            parallelizable = "NO">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "B8DE3A28C8AE38D49E1E3177"
+               BuildableName = "LoanCalculatorUITests.xctest"
+               BlueprintName = "LoanCalculatorUITests"
+               ReferencedContainer = "container:LoanCalculator.xcodeproj">
+            </BuildableReference>
+         </TestableReference>
       </Testables>
       <CommandLineArguments>
       </CommandLineArguments>

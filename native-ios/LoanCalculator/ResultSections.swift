@@ -1,16 +1,13 @@
 import SwiftUI
 
-/// Everything below the inputs: the payment, what the total is made of,
-/// the rates, the schedule link and the comparison.
+/// Below the inputs: what the loan costs, the rates, the schedule link
+/// and the comparison.
 struct ResultSections: View {
     let result: LoanResult
     let store: LoanStore
 
     var body: some View {
-        Section {
-            headline
-            breakdown
-        }
+        costSection
 
         Section {
             figure("ריבית שנתית", "פריים ועוד מרווח", Fmt.percent(result.annualRate))
@@ -31,47 +28,17 @@ struct ResultSections: View {
             NavigationLink("לוח סילוקין") {
                 ScheduleView(result: result)
             }
+            ShareLink(
+                "שיתוף הסיכום ולוח הסילוקין",
+                item: LoanReport(result: result),
+                preview: SharePreview("סיכום הלוואה")
+            )
         }
 
         compare
     }
 
-    // MARK: Headline
-
-    private var paymentNote: String? {
-        var notes: [String] = []
-        switch result.repaymentType {
-        case .spitzer: break
-        case .balloon: notes.append("ריבית בלבד. הקרן משולמת בתשלום האחרון")
-        case .grace:
-            notes.append("החל מחודש \(result.graceMonths + 1), אחרי \(result.graceMonths) חודשי גרייס")
-        }
-        if result.isCpiLinked {
-            notes.append("התשלום יתעדכן לפי המדד")
-        }
-        return notes.isEmpty ? nil : notes.joined(separator: ". ")
-    }
-
-    private var headline: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text("תשלום חודשי")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-            MoneyText(value: result.monthlyPayment)
-                .font(.system(size: 44, weight: .semibold, design: .rounded))
-                .minimumScaleFactor(0.6)
-                .lineLimit(1)
-            if let paymentNote {
-                Text(paymentNote)
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-            }
-        }
-        .padding(.vertical, 6)
-        .accessibilityElement(children: .combine)
-    }
-
-    // MARK: Breakdown
+    // MARK: Cost. Reads as a sum: the parts, then the total.
 
     private struct Part: Identifiable {
         let label: String
@@ -82,58 +49,60 @@ struct ResultSections: View {
 
     private var parts: [Part] {
         [
-            Part(label: "קרן", value: result.principal, color: .accentColor),
-            Part(label: "ריבית", value: result.totalInterest, color: .accentColor.opacity(0.55)),
-            Part(label: "הפרשי הצמדה", value: result.totalLinkage, color: .accentColor.opacity(0.28)),
+            Part(label: "קרן", value: result.principal, color: .ink),
+            Part(label: "ריבית", value: result.totalInterest, color: .cost),
+            Part(label: "הפרשי הצמדה", value: result.totalLinkage, color: .linkage),
             Part(label: "עמלת פתיחת תיק", value: result.fee, color: Color(.systemGray2)),
         ].filter { $0.value > 0 }
     }
 
-    private var breakdown: some View {
+    private var costSection: some View {
         let parts = parts
         let total = parts.reduce(0) { $0 + $1.value }
+        let extra = result.totalPaid - result.principal
 
-        return VStack(spacing: 12) {
-            HStack(alignment: .firstTextBaseline) {
-                Text("סך הכול תשלמו")
-                    .fontWeight(.semibold)
-                Spacer()
-                MoneyText(value: result.totalPaid)
-                    .font(.title3.weight(.semibold))
-            }
-
+        return Section {
             // One bar split in proportion to each part of the total
             GeometryReader { geo in
                 let gaps = 3 * CGFloat(max(parts.count - 1, 0))
                 HStack(spacing: 3) {
                     ForEach(parts) { part in
-                        Capsule()
+                        RoundedRectangle(cornerRadius: 3)
                             .fill(part.color)
                             .frame(width: max(3, (geo.size.width - gaps) * part.value / total))
                     }
                 }
             }
-            .frame(height: 10)
+            .frame(height: 14)
             .clipped()
+            .padding(.vertical, 6)
             .animation(.snappy, value: parts.map(\.value))
             .accessibilityHidden(true)
 
-            VStack(spacing: 8) {
-                ForEach(parts) { part in
-                    HStack {
-                        Circle()
-                            .fill(part.color)
-                            .frame(width: 10, height: 10)
-                        Text(part.label)
-                        Spacer()
-                        MoneyText(value: part.value)
-                    }
-                    .font(.subheadline)
-                    .accessibilityElement(children: .combine)
+            ForEach(parts) { part in
+                HStack {
+                    RoundedRectangle(cornerRadius: 3)
+                        .fill(part.color)
+                        .frame(width: 12, height: 12)
+                    Text(part.label)
+                    Spacer()
+                    MoneyText(value: part.value)
                 }
+                .accessibilityElement(children: .combine)
             }
+
+            HStack {
+                Text("סך הכול תשלמו")
+                Spacer()
+                MoneyText(value: result.totalPaid)
+            }
+            .fontWeight(.bold)
+            .accessibilityElement(children: .combine)
+        } header: {
+            Text("כמה זה עולה")
+        } footer: {
+            Text("תחזירו \(Fmt.money(extra, cents: false)) מעבר לסכום שקיבלתם.")
         }
-        .padding(.vertical, 6)
     }
 
     private func figure(_ label: String, _ caption: String, _ value: String) -> some View {
@@ -187,8 +156,8 @@ struct ResultSections: View {
             } else {
                 MoneyText(value: diff, signed: true)
                     .fontWeight(.semibold)
-                    // Cheaper is good news, more expensive is not
-                    .foregroundStyle(diff < 0 ? Color.accentColor : Color.red)
+                    // Paying more takes the cost colour, paying less the ink
+                    .foregroundStyle(diff < 0 ? Color.ink : Color.cost)
             }
         }
     }

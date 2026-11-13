@@ -1,4 +1,5 @@
 import Foundation
+import PDFKit
 import Testing
 @testable import LoanCalculator
 
@@ -89,6 +90,46 @@ struct CalculatorTests {
     }
 }
 
+struct BorrowTests {
+    /// Sizing a loan by its own payment gives the loan back
+    @Test(arguments: RepaymentType.allCases)
+    func roundTrip(track: RepaymentType) throws {
+        let loan = LoanCalculator.calculate(
+            principal: 80000, prime: 4.75, margin: 6.75, months: 48,
+            repaymentType: track, annualInflationPercent: 2)
+        let principal = try #require(LoanCalculator.principal(
+            forMonthlyPayment: loan.monthlyPayment, prime: 4.75, margin: 6.75, months: 48,
+            repaymentType: track, annualInflationPercent: 2))
+        #expect(close(principal, 80000, 1))
+    }
+
+    @Test func noPaymentToSizeBy() {
+        #expect(LoanCalculator.principal(
+            forMonthlyPayment: 1000, prime: 0, margin: 0, months: 24,
+            repaymentType: .balloon) == nil)
+        #expect(LoanCalculator.principal(
+            forMonthlyPayment: 0, prime: 4, margin: 2, months: 24) == nil)
+    }
+}
+
+struct ReportTests {
+    @Test func pdfHasEveryMonth() throws {
+        let loan = LoanCalculator.calculate(
+            principal: 50000, prime: 4.75, margin: 6.75, months: 100, fee: 490,
+            annualInflationPercent: 3)
+        let data = LoanReport(result: loan).pdfData()
+        let pdf = try #require(PDFDocument(data: data))
+        // Pass TEST_RUNNER_SHOTS=<folder> to keep a copy to look at
+        if let dir = ProcessInfo.processInfo.environment["SHOTS"] {
+            try data.write(to: URL(fileURLWithPath: dir).appendingPathComponent("report.pdf"))
+        }
+        #expect(pdf.pageCount >= 2)
+        let text = pdf.string ?? ""
+        #expect(text.contains("100"))
+        #expect(text.contains("50,000.00"))
+    }
+}
+
 @MainActor
 struct StoreTests {
     private func freshDefaults() -> UserDefaults {
@@ -141,7 +182,30 @@ struct StoreTests {
         #expect(second.saved == first.saved)
     }
 
+    @Test func borrowMode() {
+        let store = LoanStore(defaults: freshDefaults())
+        store.mode = .borrow
+        store.targetText = "1,100"
+        // 1,099.63 a month is the default 50,000 loan
+        #expect(close(store.result?.principal, 50016, 2))
+        #expect(close(store.result?.monthlyPayment, 1100, 0.05))
+
+        store.targetText = "100"
+        #expect(store.targetError != nil)
+        #expect(store.result == nil)
+
+        store.targetText = "50,000"
+        #expect(store.targetError != nil)
+
+        // A broken term is reported on the term, not on the payment
+        store.targetText = "1,100"
+        store.monthsText = "5"
+        #expect(store.targetError == nil)
+        #expect(store.monthsError != nil)
+    }
+
     @Test func sanitizers() {
+        #expect(Fmt.ungrouped("50,000") == "50000")
         #expect(Fmt.sanitizeWhole("12a3456") == "123,456")
         #expect(Fmt.sanitizeWhole("") == "")
         #expect(Fmt.sanitizeDecimal("4.7.5") == "4.75")

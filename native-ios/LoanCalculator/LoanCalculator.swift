@@ -162,6 +162,28 @@ enum LoanCalculator {
         )
     }
 
+    /// The largest loan a monthly payment supports, in whole shekels.
+    ///
+    /// The payment is proportional to the principal on every track, so one
+    /// probe loan gives the ratio. Nil when the track has no monthly payment
+    /// to size the loan by (a balloon loan at zero interest).
+    static func principal(
+        forMonthlyPayment target: Double,
+        prime: Double,
+        margin: Double,
+        months: Int,
+        repaymentType: RepaymentType = .spitzer,
+        annualInflationPercent: Double = 0
+    ) -> Double? {
+        let probe = 100_000.0
+        let payment = calculate(
+            principal: probe, prime: prime, margin: margin, months: months,
+            repaymentType: repaymentType, annualInflationPercent: annualInflationPercent
+        ).monthlyPayment
+        guard target > 0, payment > 0 else { return nil }
+        return (target * probe / payment).rounded(.down)
+    }
+
     /// Effective annual cost of credit, in percent.
     ///
     /// Finds the monthly rate i at which the money actually received equals

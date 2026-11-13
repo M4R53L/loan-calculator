@@ -1,102 +1,112 @@
 # Bank Loan Calculator
 
-Flutter app that calculates bank loan payments with Israeli bank interest rates (Prime + Margin).
+A Hebrew loan calculator for Israeli consumer and car loans, priced as Prime plus a margin. The limits and repayment tracks follow the loans Mimun Yashir offers: 15,000 to 400,000 ₪ over 12 to 100 months.
 
-## Features
-- Calculate monthly payments using standard amortization
-- Support for Prime + Margin rate structure
-- Full amortization schedule with month-by-month breakdown
-- Hebrew UI with ILS currency formatting
-- Input validation and error handling
-- Comprehensive unit tests
+The repo holds two apps that share the same calculations:
 
-## Getting Started
+| App | Folder | Runs on |
+| --- | --- | --- |
+| Native iOS (SwiftUI) | `native-ios/` | iPhone and iPad, iOS 17 or later |
+| Flutter | `lib/` | iOS, Android, macOS, web, Windows, Linux |
 
-### Prerequisites
-- Flutter SDK 3.0 or higher
-- iOS/Android development environment
+Both work fully offline. Nothing is fetched or sent, so the Prime rate is a number you type in. The default is 4.75%, as of November 2026.
 
-### Installation
+## What it calculates
 
-1. Create a new Flutter project:
-        flutter create loan_calculator
-        cd loan_calculator
+- **Monthly payment** for a loan amount, term and rate
+- **Repayment tracks**
+  - Spitzer (שפיצר): the same payment every month
+  - Balloon (בלון): interest only each month, the whole principal in the last payment
+  - Grace (גרייס): no payments for the first 3 months, then the loan and the accrued interest over the rest of the term
+- **File-opening fee** and the **effective annual cost of credit**, which includes it
+- **CPI linkage**, from an inflation rate you estimate
+- **Amortization schedule**, month by month
+- **Save and compare**: pin one loan, change the inputs, and see the difference
 
-2. Replace the files with the provided code
+The native iOS app also has:
 
-3. Get dependencies: flutter pub get
+- **How much can I borrow**: enter the monthly payment you can afford and get the loan amount
+- **PDF export** of the summary and the full schedule, through the share sheet
 
-4. Run the app:
-        For Android
-        flutter run
+## Native iOS app
 
-        For iOS
-        flutter run -d ios
+Requires Xcode 16 or later.
 
-        For web (testing)
-        flutter run -d chrome
+```bash
+open native-ios/LoanCalculator.xcodeproj
+```
 
-### Run Tests
-    flutter test
+Pick a simulator and press Run.
 
+To run on a real iPhone, create `native-ios/Local.xcconfig` with your Apple team ID. Git ignores this file, so the ID stays out of the repo.
 
-## Usage
+```
+DEVELOPMENT_TEAM = YOUR_TEAM_ID
+```
 
-1. Enter loan principal amount in ILS
-2. Enter Prime rate (Bank of Israel base rate)
-3. Enter Margin rate (bank's additional interest)
-4. Enter number of months
-5. Tap "חשב" to calculate
-6. Toggle "הצג לוח סילוקין" to see amortization schedule
+The Xcode project is generated from `native-ios/project.yml` with [XcodeGen](https://github.com/yonaskolb/XcodeGen). After adding or removing files outside Xcode, regenerate it:
 
-## Formula
-Monthly Payment (PMT):
-        PMT = P × r / (1 − (1 + r)^(−n))
+```bash
+cd native-ios && xcodegen generate
+```
 
-        Where:
-        P = Principal
-        r = Monthly rate = (Prime + Margin) / 100 / 12
-        n = Number of months
+### Tests
 
-## Test Cases
-From the original spreadsheet:
-- ₪76,500 @ 9.1% for 60 months → ₪1,591.73/month
-- ₪20,000 @ 7% for 48 months → ₪478.92/month
-- ₪50,000 @ 6.7% for 60 months → ₪983.00/month
+```bash
+cd native-ios
+xcodebuild test -project LoanCalculator.xcodeproj -scheme LoanCalculator \
+  -destination 'platform=iOS Simulator,name=iPhone 17 Pro Max'
+```
 
-# How to Build and Deploy
-1. Android
-        # Debug APK
-        flutter build apk
+This runs the unit tests for the calculations and the UI tests that drive the app. To keep screenshots from the UI tests and a sample PDF, add `TEST_RUNNER_SHOTS=/some/folder` before `xcodebuild`.
 
-        # Release APK
-        flutter build apk --release
+## Flutter app
 
-        # App Bundle (for Play Store)
-        flutter build appbundle --release
+Requires Flutter 3.x.
 
-2. iOS
-        # Open Xcode project
-        open ios/Runner.xcworkspace
+```bash
+flutter pub get
+flutter run            # pick a device when asked
+flutter test
+```
 
-        # Build from command line
-        flutter build ios --release
+The iOS project has no signing team set. To run on a real iPhone, choose your team in Xcode under Runner, Signing & Capabilities, and leave that change uncommitted.
 
-        # For App Store
-        flutter build ipa
+## How the payment is calculated
 
+Spitzer uses the standard annuity formula:
 
-# Project Structure
-        loan_calculator/
-        ├── README.md
-        ├── lib
-        │   ├── main.dart
-        │   ├── models
-        │   │   └── loan_result.dart
-        │   ├── screens
-        │   │   └── calculator_screen.dart
-        │   └── services
-        │       └── loan_calculator.dart
-        ├── pubspec.yaml
-        └── test
-        └── loan_calculator_test.dart
+```
+PMT = P × r / (1 − (1 + r)^(−n))
+
+P = loan amount
+r = monthly rate = (Prime + margin) / 100 / 12
+n = number of months
+```
+
+Every track is simulated month by month: the balance is indexed for inflation if the loan is CPI-linked, interest is charged on it, and the payment for that track is taken off.
+
+The effective annual cost is the rate at which the money you actually receive (the loan minus the fee) equals the present value of all the payments, compounded to a year.
+
+### Checked against
+
+- 76,500 ₪ at 9.1% for 60 months: 1,591.73 ₪ a month
+- 20,000 ₪ at 7% for 48 months: 478.92 ₪ a month
+- 50,000 ₪ at 6.7% for 60 months: 983.00 ₪ a month
+- Mimun Yashir's published example: 30,000 ₪ at 8.5% over 55 payments with a 490 ₪ fee gives 660.51 ₪ a month, 36,817 ₪ in total, and an effective cost of 9.66%
+
+## Layout
+
+```
+native-ios/
+  project.yml               XcodeGen definition
+  LoanCalculator/           app: calculator, store, views, PDF report
+  LoanCalculatorTests/      unit tests
+  LoanCalculatorUITests/    UI tests
+lib/
+  services/                 calculator, saved inputs
+  models/  screens/  widgets/  theme/  util/
+test/                       Flutter unit and widget tests
+```
+
+The results are estimates. A lender's actual offer depends on the borrower and can differ.

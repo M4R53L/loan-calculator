@@ -5,9 +5,12 @@ struct CalculatorView: View {
     @FocusState private var focus: Field?
     /// Bumped on every slider step and quick pick, to tick the haptic engine
     @State private var ticks = 0
+    /// The pinned bar only shows once the headline figure scrolls away
+    @State private var heroVisible = true
+    @State private var confirmingReset = false
 
     enum Field: Hashable {
-        case principal, months, prime, margin, fee, inflation
+        case principal, target, months, prime, margin, fee, inflation
     }
 
     private static let termPicks = [24, 36, 48, 60, 84]
@@ -17,6 +20,29 @@ struct CalculatorView: View {
 
         NavigationStack {
             Form {
+                // The question, then its answer, straight on the canvas
+                Section {
+                    Picker("מה לחשב", selection: $store.mode.animation(.snappy)) {
+                        ForEach(CalcMode.allCases) { mode in
+                            Text(mode.label).tag(mode)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                    .listRowSeparator(.hidden)
+
+                    Group {
+                        if let result {
+                            LoanHero(result: result, mode: store.mode)
+                        } else {
+                            NoResult()
+                        }
+                    }
+                    .onAppear { heroVisible = true }
+                    .onDisappear { heroVisible = false }
+                }
+                .listRowBackground(Color.clear)
+                .listRowInsets(EdgeInsets(top: 6, leading: 4, bottom: 6, trailing: 4))
+
                 loanSection
                 rateSection
                 trackSection
@@ -24,25 +50,28 @@ struct CalculatorView: View {
 
                 if let result {
                     ResultSections(result: result, store: store)
-                } else {
-                    Section {
-                        ContentUnavailableView(
-                            "אין עדיין חישוב",
-                            systemImage: "plus.forwardslash.minus",
-                            description: Text("תקנו את השדות המסומנים, וההחזר החודשי יופיע כאן.")
-                        )
-                    }
                 }
             }
             // Not .interactively: dragging the keyboard down by hand leaves a stale
             // keyboard inset behind, which shows as a gap under the payment bar.
             .scrollDismissesKeyboard(.immediately)
             .navigationTitle("מחשבון הלוואה")
+            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("איפוס") {
                         focus = nil
-                        withAnimation(.snappy) { store.reset() }
+                        confirmingReset = true
+                    }
+                    .confirmationDialog(
+                        "לאפס את כל הנתונים לערכי ברירת המחדל?",
+                        isPresented: $confirmingReset,
+                        titleVisibility: .visible
+                    ) {
+                        Button("איפוס הנתונים", role: .destructive) {
+                            withAnimation(.snappy) { store.reset() }
+                        }
+                        Button("ביטול", role: .cancel) {}
                     }
                 }
                 ToolbarItemGroup(placement: .keyboard) {
@@ -52,12 +81,15 @@ struct CalculatorView: View {
                 }
             }
             .safeAreaInset(edge: .bottom, spacing: 0) {
-                if let result {
-                    PaymentBar(result: result)
+                if let result, !heroVisible {
+                    PaymentBar(result: result, mode: store.mode)
+                        .transition(.move(edge: .bottom).combined(with: .opacity))
                 }
             }
+            .animation(.snappy(duration: 0.25), value: heroVisible)
             .sensoryFeedback(.selection, trigger: ticks)
             .sensoryFeedback(.selection, trigger: store.track)
+            .sensoryFeedback(.selection, trigger: store.mode)
             .sensoryFeedback(.selection, trigger: store.cpiLinked)
             .sensoryFeedback(.impact(weight: .light), trigger: store.saved)
         }
@@ -67,34 +99,31 @@ struct CalculatorView: View {
 
     private var loanSection: some View {
         Section("ההלוואה") {
-            InputRow(
-                label: "סכום ההלוואה", unit: "₪",
-                text: wholeBinding(\.principalText),
-                error: store.principalError,
-                field: .principal, focus: $focus
-            )
-            Slider(
-                value: Binding(
-                    get: {
-                        min(max(Fmt.parse(store.principalText) ?? LoanCalculator.minPrincipal,
-                                LoanCalculator.minPrincipal), LoanCalculator.maxPrincipal)
-                    },
-                    set: { new in
-                        // Snap to 5,000 here: a stepped Slider draws a tick per step
-                        let text = Fmt.grouped((new / 5000).rounded() * 5000)
-                        if text != store.principalText {
-                            store.principalText = text
-                            ticks += 1
-                        }
-                    }
-                ),
-                in: LoanCalculator.minPrincipal...LoanCalculator.maxPrincipal
-            ) {
-                Text("סכום ההלוואה")
-            } minimumValueLabel: {
-                Text("15K").font(.caption).foregroundStyle(.secondary)
-            } maximumValueLabel: {
-                Text("400K").font(.caption).foregroundStyle(.secondary)
+            switch store.mode {
+            case .payment:
+                InputRow(
+                    label: "סכום ההלוואה", unit: "₪",
+                    text: wholeBinding(\.principalText, .principal),
+                    error: store.principalError,
+                    field: .principal, focus: $focus
+                )
+                stepSlider(
+                    "סכום ההלוואה", text: \.principalText,
+                    range: LoanCalculator.minPrincipal...LoanCalculator.maxPrincipal,
+                    step: 5000, low: "15 אלף", high: "400 אלף"
+                )
+            case .borrow:
+                InputRow(
+                    label: "תשלום חודשי רצוי", unit: "₪",
+                    text: wholeBinding(\.targetText, .target),
+                    error: store.targetError,
+                    field: .target, focus: $focus
+                )
+                stepSlider(
+                    "תשלום חודשי רצוי", text: \.targetText,
+                    range: LoanStore.minTarget...LoanStore.maxTarget,
+                    step: 50, low: "200", high: "10 אלף"
+                )
             }
 
             InputRow(
@@ -118,9 +147,9 @@ struct CalculatorView: View {
             ) {
                 Text("תקופה")
             } minimumValueLabel: {
-                Text("12").font(.caption).foregroundStyle(.secondary)
+                sliderLabel("12")
             } maximumValueLabel: {
-                Text("100").font(.caption).foregroundStyle(.secondary)
+                sliderLabel("100")
             }
             HStack(spacing: 8) {
                 ForEach(Self.termPicks, id: \.self) { months in
@@ -143,7 +172,7 @@ struct CalculatorView: View {
     }
 
     private var rateSection: some View {
-        Section("ריבית") {
+        Section {
             InputRow(
                 label: "ריבית פריים", unit: "%",
                 text: decimalBinding(\.primeText),
@@ -156,6 +185,13 @@ struct CalculatorView: View {
                 error: store.marginError,
                 field: .margin, focus: $focus, keyboard: .decimalPad
             )
+        } header: {
+            Text("ריבית")
+        } footer: {
+            // The app works offline, so the prime rate is a typed-in figure
+            if store.primeText == LoanStore.Defaults.prime {
+                Text("\(LoanStore.Defaults.prime)% היא ריבית הפריים נכון ל\(LoanStore.Defaults.primeAsOf). בדקו שלא השתנתה מאז.")
+            }
         }
     }
 
@@ -178,7 +214,7 @@ struct CalculatorView: View {
         Section {
             InputRow(
                 label: "עמלת פתיחת תיק", unit: "₪",
-                text: wholeBinding(\.feeText),
+                text: wholeBinding(\.feeText, .fee),
                 error: store.feeError,
                 field: .fee, focus: $focus
             )
@@ -216,6 +252,44 @@ struct CalculatorView: View {
 
     // MARK: Helpers
 
+    private func sliderLabel(_ text: String) -> some View {
+        Text(text).font(.caption).foregroundStyle(.secondary)
+    }
+
+    /// Slider for a whole-shekel field. It snaps in code: a stepped Slider
+    /// draws a tick mark for every step.
+    private func stepSlider(
+        _ label: String,
+        text keyPath: ReferenceWritableKeyPath<LoanStore, String>,
+        range: ClosedRange<Double>,
+        step: Double,
+        low: String,
+        high: String
+    ) -> some View {
+        Slider(
+            value: Binding(
+                get: {
+                    min(max(Fmt.parse(store[keyPath: keyPath]) ?? range.lowerBound,
+                            range.lowerBound), range.upperBound)
+                },
+                set: { new in
+                    let text = Fmt.grouped((new / step).rounded() * step)
+                    if text != store[keyPath: keyPath] {
+                        store[keyPath: keyPath] = text
+                        ticks += 1
+                    }
+                }
+            ),
+            in: range
+        ) {
+            Text(label)
+        } minimumValueLabel: {
+            sliderLabel(low)
+        } maximumValueLabel: {
+            sliderLabel(high)
+        }
+    }
+
     private func setMonths(_ months: Int) {
         let text = String(months)
         if text != store.monthsText {
@@ -224,9 +298,17 @@ struct CalculatorView: View {
         }
     }
 
-    private func wholeBinding(_ keyPath: ReferenceWritableKeyPath<LoanStore, String>) -> Binding<String> {
+    /// Whole-shekel field. Thousands separators show only while the field is
+    /// not being edited: regrouping under the cursor makes it jump to the end.
+    private func wholeBinding(
+        _ keyPath: ReferenceWritableKeyPath<LoanStore, String>,
+        _ field: Field
+    ) -> Binding<String> {
         Binding(
-            get: { store[keyPath: keyPath] },
+            get: {
+                let text = store[keyPath: keyPath]
+                return focus == field ? Fmt.ungrouped(text) : text
+            },
             set: { store[keyPath: keyPath] = Fmt.sanitizeWhole($0) }
         )
     }
@@ -264,6 +346,7 @@ private struct InputRow: View {
                     .monospacedDigit()
                     .focused(focus, equals: field)
                     .labelsHidden()
+                    .accessibilityIdentifier("field.\(field)")
                 Text(unit)
                     .foregroundStyle(.secondary)
             }
@@ -278,14 +361,15 @@ private struct InputRow: View {
     }
 }
 
-/// Keeps the monthly payment in view while the form is scrolled or edited.
+/// Keeps the answer in view once the headline has scrolled away.
 private struct PaymentBar: View {
     let result: LoanResult
+    let mode: CalcMode
 
     var body: some View {
         HStack(alignment: .firstTextBaseline) {
             VStack(alignment: .leading, spacing: 2) {
-                Text("תשלום חודשי")
+                Text(mode == .borrow ? "תוכלו ללוות" : "תשלום חודשי")
                     .font(.subheadline)
                 Text("עלות אשראי \(Fmt.percent(result.effectiveAnnualCost ?? result.annualRate))")
                     .font(.caption)
@@ -293,14 +377,18 @@ private struct PaymentBar: View {
             }
             .foregroundStyle(.secondary)
             Spacer()
-            MoneyText(value: result.monthlyPayment)
-                .font(.title2.weight(.semibold))
+            MoneyText(
+                value: mode == .borrow ? result.principal : result.monthlyPayment,
+                cents: mode == .payment
+            )
+            .font(.title2.weight(.semibold))
         }
         .padding(.horizontal, 20)
         .padding(.vertical, 12)
         .background(.bar)
         .overlay(alignment: .top) { Divider() }
         .accessibilityElement(children: .combine)
+        .accessibilityIdentifier("paymentBar")
     }
 }
 
@@ -308,9 +396,10 @@ private struct PaymentBar: View {
 struct MoneyText: View {
     let value: Double
     var signed = false
+    var cents = true
 
     var body: some View {
-        Text(signed ? Fmt.signedMoney(value) : Fmt.money(value))
+        Text(signed ? Fmt.signedMoney(value) : Fmt.money(value, cents: cents))
             .monospacedDigit()
             .contentTransition(.numericText(value: value))
             .animation(.snappy(duration: 0.3), value: value)

@@ -15,11 +15,21 @@
 		518D738114A07B3E70F80375 /* ResultSections.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC925D74AC3B220352989AD6 /* ResultSections.swift */; };
 		6B8EB37ECF04B08304D36B7A /* Format.swift in Sources */ = {isa = PBXBuildFile; fileRef = EDB50200E9EFD4ADD495171E /* Format.swift */; };
 		96F118D43E4CBACFAA208E09 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 4CAA5C8CA7E8909FF691CC3E /* Assets.xcassets */; };
+		AA757C6A3E542ABE826BC001 /* LoanReport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2A12865FB67A34BA7363D836 /* LoanReport.swift */; };
+		BB8F17A5EF6CB3AA4B832DD0 /* LoanCalculatorUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1D93F5DA6C4F5C2263F7524 /* LoanCalculatorUITests.swift */; };
 		C18CD5C2DA90F6E3160FDFAD /* LoanCalculator.swift in Sources */ = {isa = PBXBuildFile; fileRef = C99EFF76765E5A6FE86FEFD7 /* LoanCalculator.swift */; };
 		DA24B7442C224D7B5BAD1314 /* LoanCalculatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 716576F3F1288021AF52634D /* LoanCalculatorTests.swift */; };
+		FD75080F38835683D285960D /* LoanHero.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB88BB209529969DAB05217C /* LoanHero.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
+		09C5D0EA755B98EA96669BE7 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 15F8AB4C07A2B92AE097DEF8 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 61D6085203B1AD3886A88A62;
+			remoteInfo = LoanCalculator;
+		};
 		E6AD39BC98AB4651F18EC0FB /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = 15F8AB4C07A2B92AE097DEF8 /* Project object */;
@@ -32,16 +42,20 @@
 /* Begin PBXFileReference section */
 		0A8EA31626B698AE4B53FAD5 /* LoanCalculator.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = LoanCalculator.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		1936C977356D97B3A15976C2 /* he */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = he; path = he.lproj/Localizable.strings; sourceTree = "<group>"; };
+		2A12865FB67A34BA7363D836 /* LoanReport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoanReport.swift; sourceTree = "<group>"; };
 		3E8F2CB39555A3F34FD6DD5F /* CalculatorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalculatorView.swift; sourceTree = "<group>"; };
 		411C0ED42581BDF343ED4FE2 /* Config.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Config.xcconfig; sourceTree = "<group>"; };
 		4CAA5C8CA7E8909FF691CC3E /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		5EE75AD1871FA0A322063A92 /* LoanStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoanStore.swift; sourceTree = "<group>"; };
 		716576F3F1288021AF52634D /* LoanCalculatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoanCalculatorTests.swift; sourceTree = "<group>"; };
 		8EBF22FCEB11289F2C3232DF /* LoanCalculatorTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = LoanCalculatorTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		AA015EF517FE8E9DB39C80F4 /* LoanCalculatorUITests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = LoanCalculatorUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		AB88BB209529969DAB05217C /* LoanHero.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoanHero.swift; sourceTree = "<group>"; };
 		AC925D74AC3B220352989AD6 /* ResultSections.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ResultSections.swift; sourceTree = "<group>"; };
 		C99EFF76765E5A6FE86FEFD7 /* LoanCalculator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoanCalculator.swift; sourceTree = "<group>"; };
 		D35FF49FC9EC16382558F582 /* LoanCalculatorApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoanCalculatorApp.swift; sourceTree = "<group>"; };
 		E036C7CFCC08CDD4738631FD /* ScheduleView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScheduleView.swift; sourceTree = "<group>"; };
+		E1D93F5DA6C4F5C2263F7524 /* LoanCalculatorUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoanCalculatorUITests.swift; sourceTree = "<group>"; };
 		EDB50200E9EFD4ADD495171E /* Format.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Format.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -51,6 +65,7 @@
 			children = (
 				0A8EA31626B698AE4B53FAD5 /* LoanCalculator.app */,
 				8EBF22FCEB11289F2C3232DF /* LoanCalculatorTests.xctest */,
+				AA015EF517FE8E9DB39C80F4 /* LoanCalculatorUITests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -72,11 +87,20 @@
 			path = LoanCalculatorTests;
 			sourceTree = "<group>";
 		};
+		633CB82C2DA8690CC5033B96 /* LoanCalculatorUITests */ = {
+			isa = PBXGroup;
+			children = (
+				E1D93F5DA6C4F5C2263F7524 /* LoanCalculatorUITests.swift */,
+			);
+			path = LoanCalculatorUITests;
+			sourceTree = "<group>";
+		};
 		714325FCFE8119FAF941A55C = {
 			isa = PBXGroup;
 			children = (
 				84A2DB21C63FA6AF01913162 /* LoanCalculator */,
 				5B69D40FE93882F51FB8AFD4 /* LoanCalculatorTests */,
+				633CB82C2DA8690CC5033B96 /* LoanCalculatorUITests */,
 				4DA64E25B7A3880556B89482 /* native-ios */,
 				28C2F51560E55C129FEDD08C /* Products */,
 			);
@@ -90,6 +114,8 @@
 				EDB50200E9EFD4ADD495171E /* Format.swift */,
 				C99EFF76765E5A6FE86FEFD7 /* LoanCalculator.swift */,
 				D35FF49FC9EC16382558F582 /* LoanCalculatorApp.swift */,
+				AB88BB209529969DAB05217C /* LoanHero.swift */,
+				2A12865FB67A34BA7363D836 /* LoanReport.swift */,
 				5EE75AD1871FA0A322063A92 /* LoanStore.swift */,
 				AC925D74AC3B220352989AD6 /* ResultSections.swift */,
 				E036C7CFCC08CDD4738631FD /* ScheduleView.swift */,
@@ -137,6 +163,24 @@
 			productReference = 8EBF22FCEB11289F2C3232DF /* LoanCalculatorTests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
 		};
+		B8DE3A28C8AE38D49E1E3177 /* LoanCalculatorUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 944AA280EBD2D04B21016BB7 /* Build configuration list for PBXNativeTarget "LoanCalculatorUITests" */;
+			buildPhases = (
+				48E1E7A59B69798C38B903A3 /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				7FF3AE691BDE83689FB90163 /* PBXTargetDependency */,
+			);
+			name = LoanCalculatorUITests;
+			packageProductDependencies = (
+			);
+			productName = LoanCalculatorUITests;
+			productReference = AA015EF517FE8E9DB39C80F4 /* LoanCalculatorUITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -151,6 +195,10 @@
 					};
 					831493BB1C0FCA6BC8814304 = {
 						ProvisioningStyle = Automatic;
+					};
+					B8DE3A28C8AE38D49E1E3177 = {
+						ProvisioningStyle = Automatic;
+						TestTargetID = 61D6085203B1AD3886A88A62;
 					};
 				};
 			};
@@ -170,6 +218,7 @@
 			targets = (
 				61D6085203B1AD3886A88A62 /* LoanCalculator */,
 				831493BB1C0FCA6BC8814304 /* LoanCalculatorTests */,
+				B8DE3A28C8AE38D49E1E3177 /* LoanCalculatorUITests */,
 			);
 		};
 /* End PBXProject section */
@@ -195,6 +244,14 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		48E1E7A59B69798C38B903A3 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				BB8F17A5EF6CB3AA4B832DD0 /* LoanCalculatorUITests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		9FAA30D93206A696455A4454 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -203,6 +260,8 @@
 				6B8EB37ECF04B08304D36B7A /* Format.swift in Sources */,
 				C18CD5C2DA90F6E3160FDFAD /* LoanCalculator.swift in Sources */,
 				221B50176C9AC6AC2201E14A /* LoanCalculatorApp.swift in Sources */,
+				FD75080F38835683D285960D /* LoanHero.swift in Sources */,
+				AA757C6A3E542ABE826BC001 /* LoanReport.swift in Sources */,
 				3ABC5B4B2FD04E96FE840109 /* LoanStore.swift in Sources */,
 				518D738114A07B3E70F80375 /* ResultSections.swift in Sources */,
 				348869F26EB7B256D6E2832B /* ScheduleView.swift in Sources */,
@@ -212,6 +271,11 @@
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
+		7FF3AE691BDE83689FB90163 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 61D6085203B1AD3886A88A62 /* LoanCalculator */;
+			targetProxy = 09C5D0EA755B98EA96669BE7 /* PBXContainerItemProxy */;
+		};
 		ADCDDE8301C859732428F7A9 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			target = 61D6085203B1AD3886A88A62 /* LoanCalculator */;
@@ -306,7 +370,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.example.loanCalculator.native;
+				PRODUCT_BUNDLE_IDENTIFIER = io.github.m4r53l.LoanCalculator;
 				SDKROOT = iphoneos;
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};
@@ -322,7 +386,7 @@
 					"@executable_path/Frameworks",
 					"@loader_path/Frameworks",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.example.LoanCalculatorTests;
+				PRODUCT_BUNDLE_IDENTIFIER = io.github.m4r53l.LoanCalculatorTests;
 				SDKROOT = iphoneos;
 				TARGETED_DEVICE_FAMILY = "1,2";
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/LoanCalculator.app/LoanCalculator";
@@ -339,12 +403,29 @@
 					"@executable_path/Frameworks",
 					"@loader_path/Frameworks",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.example.LoanCalculatorTests;
+				PRODUCT_BUNDLE_IDENTIFIER = io.github.m4r53l.LoanCalculatorTests;
 				SDKROOT = iphoneos;
 				TARGETED_DEVICE_FAMILY = "1,2";
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/LoanCalculator.app/LoanCalculator";
 			};
 			name = Release;
+		};
+		AC91A3CD69B87FC215DF00D4 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = io.github.m4r53l.LoanCalculatorUITests;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = LoanCalculator;
+			};
+			name = Debug;
 		};
 		AD6418326426E728F9479C43 /* Debug */ = {
 			isa = XCBuildConfiguration;
@@ -428,11 +509,28 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.example.loanCalculator.native;
+				PRODUCT_BUNDLE_IDENTIFIER = io.github.m4r53l.LoanCalculator;
 				SDKROOT = iphoneos;
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};
 			name = Debug;
+		};
+		E27EF5C753A25466ECCB7266 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = io.github.m4r53l.LoanCalculatorUITests;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = LoanCalculator;
+			};
+			name = Release;
 		};
 /* End XCBuildConfiguration section */
 
@@ -442,6 +540,15 @@
 			buildConfigurations = (
 				AD6418326426E728F9479C43 /* Debug */,
 				054CB45F7D03ABDA6AA433DA /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		944AA280EBD2D04B21016BB7 /* Build configuration list for PBXNativeTarget "LoanCalculatorUITests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				AC91A3CD69B87FC215DF00D4 /* Debug */,
+				E27EF5C753A25466ECCB7266 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Debug;

@@ -27,9 +27,19 @@ enum Fmt {
         String(format: "%.2f%%", value)
     }
 
+    /// "1,099.63", digits only, for figures that set their own ₪
+    static func decimal(_ value: Double) -> String {
+        value.formatted(.number.precision(.fractionLength(2)).locale(plain))
+    }
+
     /// "50,000", for the amount fields
     static func grouped(_ value: Double) -> String {
         value.formatted(.number.precision(.fractionLength(0)).locale(plain))
+    }
+
+    /// The digits of a grouped amount, as shown while its field is being edited
+    static func ungrouped(_ text: String) -> String {
+        text.replacingOccurrences(of: ",", with: "")
     }
 
     /// Parses user input that may contain thousands separators.

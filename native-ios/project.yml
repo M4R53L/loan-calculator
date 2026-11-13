@@ -1,6 +1,6 @@
 name: LoanCalculator
 options:
-  bundleIdPrefix: com.example
+  bundleIdPrefix: io.github.m4r53l
   developmentLanguage: he
   deploymentTarget:
     iOS: "17.0"
@@ -21,7 +21,7 @@ targets:
     sources: [LoanCalculator]
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.example.loanCalculator.native
+        PRODUCT_BUNDLE_IDENTIFIER: io.github.m4r53l.LoanCalculator
         GENERATE_INFOPLIST_FILE: YES
         INFOPLIST_KEY_CFBundleDisplayName: מחשבון הלוואה
         INFOPLIST_KEY_UILaunchScreen_Generation: YES
@@ -38,10 +38,19 @@ targets:
     settings:
       base:
         GENERATE_INFOPLIST_FILE: YES
+  LoanCalculatorUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources: [LoanCalculatorUITests]
+    dependencies:
+      - target: LoanCalculator
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
 schemes:
   LoanCalculator:
     build:
       targets:
         LoanCalculator: all
     test:
-      targets: [LoanCalculatorTests]
+      targets: [LoanCalculatorTests, LoanCalculatorUITests]
