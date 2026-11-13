@@ -3,7 +3,7 @@ import SwiftUI
 struct CalculatorView: View {
     @Bindable var store: LoanStore
     @FocusState private var focus: Field?
-    /// Bumped on every slider step and quick pick, to tick the haptic engine
+    /// Bumped on every slider step, to tick the haptic engine
     @State private var ticks = 0
     /// The pinned bar only shows once the headline figure scrolls away
     @State private var heroVisible = true
@@ -13,23 +13,14 @@ struct CalculatorView: View {
         case principal, target, months, prime, margin, fee, inflation
     }
 
-    private static let termPicks = [24, 36, 48, 60, 84]
-
     var body: some View {
         let result = store.result
 
         NavigationStack {
+            // The whole calculator is meant to fit one screen: fields share
+            // rows, and each slider sits in the row of the field it drives.
             Form {
-                // The question, then its answer, straight on the canvas
                 Section {
-                    Picker("מה לחשב", selection: $store.mode.animation(.snappy)) {
-                        ForEach(CalcMode.allCases) { mode in
-                            Text(mode.label).tag(mode)
-                        }
-                    }
-                    .pickerStyle(.segmented)
-                    .listRowSeparator(.hidden)
-
                     Group {
                         if let result {
                             LoanHero(result: result, mode: store.mode)
@@ -37,27 +28,45 @@ struct CalculatorView: View {
                             NoResult()
                         }
                     }
+                    // Hidden once the figure has slid under the navigation bar
+                    .onGeometryChange(for: Bool.self) { proxy in
+                        proxy.frame(in: .global).maxY > 110
+                    } action: { visible in
+                        heroVisible = visible
+                    }
                     .onAppear { heroVisible = true }
                     .onDisappear { heroVisible = false }
                 }
                 .listRowBackground(Color.clear)
-                .listRowInsets(EdgeInsets(top: 6, leading: 4, bottom: 6, trailing: 4))
+                .listRowInsets(EdgeInsets(top: 0, leading: 4, bottom: 0, trailing: 4))
 
                 loanSection
-                rateSection
-                trackSection
-                feeSection
+                termsSection
 
                 if let result {
                     ResultSections(result: result, store: store)
                 }
             }
+            .listSectionSpacing(12)
+            .contentMargins(.top, 4, for: .scrollContent)
+            .scrollContentBackground(.hidden)
+            .background(Color.canvas)
             // Not .interactively: dragging the keyboard down by hand leaves a stale
             // keyboard inset behind, which shows as a gap under the payment bar.
             .scrollDismissesKeyboard(.immediately)
             .navigationTitle("מחשבון הלוואה")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
+                // The question being asked takes the title's place
+                ToolbarItem(placement: .principal) {
+                    Picker("מה לחשב", selection: $store.mode.animation(.snappy)) {
+                        ForEach(CalcMode.allCases) { mode in
+                            Text(mode.label).tag(mode)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                    .frame(maxWidth: 230)
+                }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("איפוס") {
                         focus = nil
@@ -97,157 +106,127 @@ struct CalculatorView: View {
 
     // MARK: Sections
 
+    /// Amount (or target payment) and term, each with its slider
     private var loanSection: some View {
-        Section("ההלוואה") {
+        Section {
             switch store.mode {
             case .payment:
-                InputRow(
-                    label: "סכום ההלוואה", unit: "₪",
-                    text: wholeBinding(\.principalText, .principal),
-                    error: store.principalError,
-                    field: .principal, focus: $focus
-                )
-                stepSlider(
-                    "סכום ההלוואה", text: \.principalText,
-                    range: LoanCalculator.minPrincipal...LoanCalculator.maxPrincipal,
-                    step: 5000, low: "15 אלף", high: "400 אלף"
-                )
+                VStack(spacing: 0) {
+                    InputRow(
+                        label: "סכום ההלוואה", unit: "₪",
+                        text: wholeBinding(\.principalText, .principal),
+                        error: store.principalError,
+                        field: .principal, focus: $focus
+                    )
+                    stepSlider(
+                        "סכום ההלוואה", text: \.principalText,
+                        range: LoanCalculator.minPrincipal...LoanCalculator.maxPrincipal,
+                        step: 5000, low: "15 אלף", high: "400 אלף"
+                    )
+                }
             case .borrow:
-                InputRow(
-                    label: "תשלום חודשי רצוי", unit: "₪",
-                    text: wholeBinding(\.targetText, .target),
-                    error: store.targetError,
-                    field: .target, focus: $focus
-                )
-                stepSlider(
-                    "תשלום חודשי רצוי", text: \.targetText,
-                    range: LoanStore.minTarget...LoanStore.maxTarget,
-                    step: 50, low: "200", high: "10 אלף"
-                )
+                VStack(spacing: 0) {
+                    InputRow(
+                        label: "תשלום חודשי רצוי", unit: "₪",
+                        text: wholeBinding(\.targetText, .target),
+                        error: store.targetError,
+                        field: .target, focus: $focus
+                    )
+                    stepSlider(
+                        "תשלום חודשי רצוי", text: \.targetText,
+                        range: LoanStore.minTarget...LoanStore.maxTarget,
+                        step: 50, low: "200", high: "10 אלף"
+                    )
+                }
             }
 
-            InputRow(
-                label: "תקופה", unit: "חודשים",
-                text: Binding(
-                    get: { store.monthsText },
-                    set: { store.monthsText = String($0.filter(\.isNumber).prefix(3)) }
-                ),
-                error: store.monthsError,
-                field: .months, focus: $focus
-            )
-            Slider(
-                value: Binding(
-                    get: {
-                        Double(min(max(Int(store.monthsText) ?? LoanCalculator.minMonths,
-                                       LoanCalculator.minMonths), LoanCalculator.maxMonths))
-                    },
-                    set: { setMonths(Int($0.rounded())) }
-                ),
-                in: Double(LoanCalculator.minMonths)...Double(LoanCalculator.maxMonths)
-            ) {
-                Text("תקופה")
-            } minimumValueLabel: {
-                sliderLabel("12")
-            } maximumValueLabel: {
-                sliderLabel("100")
-            }
-            HStack(spacing: 8) {
-                ForEach(Self.termPicks, id: \.self) { months in
-                    let selected = Int(store.monthsText) == months
-                    Button {
-                        setMonths(months)
-                    } label: {
-                        Text("\(months)")
-                            .monospacedDigit()
-                            .fontWeight(selected ? .semibold : .regular)
-                            .frame(maxWidth: .infinity, minHeight: 30)
-                    }
-                    .buttonStyle(.bordered)
-                    .tint(selected ? .accentColor : .secondary)
-                    .accessibilityLabel("\(months) חודשים")
-                    .accessibilityAddTraits(selected ? .isSelected : [])
+            VStack(spacing: 0) {
+                InputRow(
+                    label: "תקופה", unit: "חודשים",
+                    text: Binding(
+                        get: { store.monthsText },
+                        set: { store.monthsText = String($0.filter(\.isNumber).prefix(3)) }
+                    ),
+                    error: store.monthsError,
+                    field: .months, focus: $focus
+                )
+                Slider(
+                    value: Binding(
+                        get: {
+                            Double(min(max(Int(store.monthsText) ?? LoanCalculator.minMonths,
+                                           LoanCalculator.minMonths), LoanCalculator.maxMonths))
+                        },
+                        set: { setMonths(Int($0.rounded())) }
+                    ),
+                    in: Double(LoanCalculator.minMonths)...Double(LoanCalculator.maxMonths)
+                ) {
+                    Text("תקופה")
+                } minimumValueLabel: {
+                    sliderLabel("12")
+                } maximumValueLabel: {
+                    sliderLabel("100")
                 }
             }
         }
+        .listRowBackground(Color.card)
     }
 
-    private var rateSection: some View {
+    /// Rates, fee and linkage in two columns, then the repayment track
+    private var termsSection: some View {
         Section {
-            InputRow(
-                label: "ריבית פריים", unit: "%",
-                text: decimalBinding(\.primeText),
-                error: store.primeError,
-                field: .prime, focus: $focus, keyboard: .decimalPad
-            )
-            InputRow(
-                label: "מרווח מעל הפריים", unit: "%",
-                text: decimalBinding(\.marginText),
-                error: store.marginError,
-                field: .margin, focus: $focus, keyboard: .decimalPad
-            )
-        } header: {
-            Text("ריבית")
-        } footer: {
-            // The app works offline, so the prime rate is a typed-in figure
-            if store.primeText == LoanStore.Defaults.prime {
-                Text("\(LoanStore.Defaults.prime)% היא ריבית הפריים נכון ל\(LoanStore.Defaults.primeAsOf). בדקו שלא השתנתה מאז.")
+            LazyVGrid(
+                columns: [GridItem(.flexible(), spacing: 16, alignment: .topLeading),
+                          GridItem(.flexible(), alignment: .topLeading)],
+                alignment: .leading, spacing: 14
+            ) {
+                InputCell(
+                    // The app works offline, so the prime rate is typed in.
+                    // Date the default, so a stale one is noticed.
+                    label: store.primeText == LoanStore.Defaults.prime
+                        ? "פריים, נכון ל־\(LoanStore.Defaults.primeAsOf)" : "ריבית פריים",
+                    unit: "%",
+                    text: decimalBinding(\.primeText),
+                    error: store.primeError,
+                    field: .prime, focus: $focus, keyboard: .decimalPad
+                )
+                InputCell(
+                    label: "מרווח מעל הפריים", unit: "%",
+                    text: decimalBinding(\.marginText),
+                    error: store.marginError,
+                    field: .margin, focus: $focus, keyboard: .decimalPad
+                )
+                InputCell(
+                    label: "עמלת פתיחת תיק", unit: "₪",
+                    text: wholeBinding(\.feeText, .fee),
+                    error: store.feeError,
+                    field: .fee, focus: $focus
+                )
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("צמוד למדד")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Toggle("צמוד למדד", isOn: $store.cpiLinked.animation(.snappy))
+                        .labelsHidden()
+                }
+                if store.cpiLinked {
+                    InputCell(
+                        label: "מדד שנתי משוער", unit: "%",
+                        text: decimalBinding(\.inflationText, allowNegative: true),
+                        error: store.inflationError,
+                        field: .inflation, focus: $focus, keyboard: .numbersAndPunctuation
+                    )
+                }
             }
-        }
-    }
+            .padding(.vertical, 2)
 
-    private var trackSection: some View {
-        Section {
             Picker("מסלול החזר", selection: $store.track) {
                 ForEach(RepaymentType.allCases) { type in
                     Text(type.label).tag(type)
                 }
             }
             .pickerStyle(.segmented)
-        } header: {
-            Text("מסלול החזר")
-        } footer: {
-            Text(trackHint)
         }
-    }
-
-    private var feeSection: some View {
-        Section {
-            InputRow(
-                label: "עמלת פתיחת תיק", unit: "₪",
-                text: wholeBinding(\.feeText, .fee),
-                error: store.feeError,
-                field: .fee, focus: $focus
-            )
-            Toggle(isOn: $store.cpiLinked.animation(.snappy)) {
-                Text("צמוד למדד")
-                Text("הקרן מתעדכנת לפי מדד המחירים לצרכן")
-            }
-            if store.cpiLinked {
-                InputRow(
-                    label: "מדד שנתי משוער", unit: "%",
-                    text: decimalBinding(\.inflationText, allowNegative: true),
-                    error: store.inflationError,
-                    field: .inflation, focus: $focus, keyboard: .numbersAndPunctuation
-                )
-            }
-        } header: {
-            Text("עמלות והצמדה")
-        } footer: {
-            Text(store.cpiLinked
-                 ? "העמלה נכללת בעלות האשראי השנתית. המדד הוא הערכה בלבד, והמדד בפועל ישנה את התשלומים."
-                 : "העמלה נכללת בעלות האשראי השנתית.")
-        }
-    }
-
-    private var trackHint: String {
-        switch store.track {
-        case .spitzer:
-            "תשלום קבוע בכל חודש. בהתחלה רובו ריבית, ובהמשך רובו קרן."
-        case .balloon:
-            "משלמים רק ריבית בכל חודש, ואת כל הקרן בתשלום האחרון."
-        case .grace:
-            "שלושה חודשים ראשונים בלי תשלומים. הריבית שנצברת מתווספת לחוב ונפרסת על שאר התקופה."
-        }
+        .listRowBackground(Color.card)
     }
 
     // MARK: Helpers
@@ -324,9 +303,9 @@ struct CalculatorView: View {
     }
 }
 
-/// A form row: label on the leading side, the editable number and its unit
-/// on the trailing side, and any error underneath. Tapping anywhere on the
-/// row starts editing.
+/// A full-width field: label on the leading side, the editable number and
+/// its unit on the trailing side, and any error underneath. Tapping anywhere
+/// on it starts editing.
 private struct InputRow: View {
     let label: String
     let unit: String
@@ -344,6 +323,7 @@ private struct InputRow: View {
                     .keyboardType(keyboard)
                     .multilineTextAlignment(.trailing)
                     .monospacedDigit()
+                    .fontWeight(.medium)
                     .focused(focus, equals: field)
                     .labelsHidden()
                     .accessibilityIdentifier("field.\(field)")
@@ -356,6 +336,49 @@ private struct InputRow: View {
                     .foregroundStyle(.red)
             }
         }
+        .contentShape(Rectangle())
+        .onTapGesture { focus.wrappedValue = field }
+    }
+}
+
+/// A half-width field for the two-column grid: small label on top, the
+/// number and its unit under it.
+private struct InputCell: View {
+    let label: String
+    let unit: String
+    @Binding var text: String
+    let error: String?
+    let field: CalculatorView.Field
+    var focus: FocusState<CalculatorView.Field?>.Binding
+    var keyboard: UIKeyboardType = .numberPad
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(label)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+            HStack(spacing: 4) {
+                TextField(label, text: $text, prompt: Text("0"))
+                    .keyboardType(keyboard)
+                    .monospacedDigit()
+                    .fontWeight(.medium)
+                    .focused(focus, equals: field)
+                    .labelsHidden()
+                    .fixedSize()
+                    .accessibilityIdentifier("field.\(field)")
+                Text(unit)
+                    .foregroundStyle(.secondary)
+            }
+            .frame(minHeight: 31) // lines up with the toggle in the next cell
+            if let error {
+                Text(error)
+                    .font(.caption)
+                    .foregroundStyle(.red)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
         .contentShape(Rectangle())
         .onTapGesture { focus.wrappedValue = field }
     }

@@ -6,6 +6,12 @@ extension Color {
     /// What borrowing costs: interest.
     static let cost = Color("Cost")
     static let linkage = Color("Linkage")
+    /// Interest colour dark enough to read as text
+    static let costText = Color("CostText")
+    /// Page background
+    static let canvas = Color("Canvas")
+    /// Background of the grouped rows
+    static let card = Color("Card")
 }
 
 /// The answer: the monthly payment, or the amount that can be borrowed.
@@ -33,13 +39,18 @@ struct LoanHero: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            Text(mode == .borrow ? "תוכלו ללוות" : "תשלום חודשי")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-            HeadlineFigure(
-                value: mode == .borrow ? result.principal : result.monthlyPayment,
-                showCents: mode == .payment
-            )
+            // Label and figure share a line, to keep the headline short
+            HStack(alignment: .lastTextBaseline) {
+                Text(mode == .borrow ? "תוכלו ללוות" : "תשלום חודשי")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .fixedSize()
+                Spacer(minLength: 8)
+                HeadlineFigure(
+                    value: mode == .borrow ? result.principal : result.monthlyPayment,
+                    showCents: mode == .payment
+                )
+            }
             if let note {
                 Text(note)
                     .font(.subheadline)
@@ -47,8 +58,6 @@ struct LoanHero: View {
                     .monospacedDigit()
             }
         }
-        .padding(.top, 4)
-        .padding(.bottom, 8)
         .frame(maxWidth: .infinity, alignment: .leading)
         .accessibilityElement(children: .combine)
         .accessibilityIdentifier("hero")
@@ -62,9 +71,9 @@ private struct HeadlineFigure: View {
     let value: Double
     let showCents: Bool
 
-    @ScaledMetric(relativeTo: .largeTitle) private var shekelSize = 76.0
-    @ScaledMetric(relativeTo: .largeTitle) private var agorotSize = 34.0
-    @ScaledMetric(relativeTo: .largeTitle) private var signSize = 30.0
+    @ScaledMetric(relativeTo: .largeTitle) private var shekelSize = 68.0
+    @ScaledMetric(relativeTo: .largeTitle) private var agorotSize = 30.0
+    @ScaledMetric(relativeTo: .largeTitle) private var signSize = 26.0
 
     var body: some View {
         let text = Fmt.decimal(value)
@@ -106,7 +115,7 @@ struct NoResult: View {
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
         }
-        .frame(maxWidth: .infinity, minHeight: 120, alignment: .leading)
+        .frame(maxWidth: .infinity, minHeight: 82, alignment: .leading)
         .accessibilityElement(children: .combine)
         .accessibilityIdentifier("noResult")
     }

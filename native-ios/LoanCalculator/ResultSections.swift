@@ -1,44 +1,40 @@
 import SwiftUI
 
-/// Below the inputs: what the loan costs, the rates, the schedule link
-/// and the comparison.
+/// Below the inputs: one card with what the loan costs, then one row of
+/// actions.
 struct ResultSections: View {
     let result: LoanResult
     let store: LoanStore
+    @State private var showingSchedule = false
+
+    private static let twoColumns = [
+        GridItem(.flexible(), spacing: 16, alignment: .topLeading),
+        GridItem(.flexible(), alignment: .topLeading),
+    ]
 
     var body: some View {
-        costSection
+        Section {
+            VStack(alignment: .leading, spacing: 12) {
+                cost
+                Divider()
+                figures
+                if let saved = store.saved {
+                    Divider()
+                    comparison(with: saved)
+                }
+            }
+            .padding(.vertical, 4)
+        }
+        .listRowBackground(Color.card)
 
         Section {
-            figure("ריבית שנתית", "פריים ועוד מרווח", Fmt.percent(result.annualRate))
-            figure(
-                "עלות אשראי שנתית", "כולל עמלות וריבית דריבית",
-                result.effectiveAnnualCost.map(Fmt.percent) ?? "לא זמין"
-            )
-            figure(
-                "תשלום אחרון",
-                result.repaymentType == .balloon ? "כולל החזר הקרן" : "בחודש \(result.months)",
-                Fmt.money(result.finalPayment)
-            )
-            figure(
-                "מספר תשלומים",
-                result.graceMonths > 0 ? "מתוך \(result.months) חודשים" : "תשלום בכל חודש",
-                "\(result.months - result.graceMonths)"
-            )
-            NavigationLink("לוח סילוקין") {
-                ScheduleView(result: result)
-            }
-            ShareLink(
-                "שיתוף הסיכום ולוח הסילוקין",
-                item: LoanReport(result: result),
-                preview: SharePreview("סיכום הלוואה")
-            )
+            actions
         }
-
-        compare
+        .listRowBackground(Color.clear)
+        .listRowInsets(EdgeInsets())
     }
 
-    // MARK: Cost. Reads as a sum: the parts, then the total.
+    // MARK: Cost: the total, and what it is made of
 
     private struct Part: Identifiable {
         let label: String
@@ -51,17 +47,24 @@ struct ResultSections: View {
         [
             Part(label: "קרן", value: result.principal, color: .ink),
             Part(label: "ריבית", value: result.totalInterest, color: .cost),
-            Part(label: "הפרשי הצמדה", value: result.totalLinkage, color: .linkage),
-            Part(label: "עמלת פתיחת תיק", value: result.fee, color: Color(.systemGray2)),
+            Part(label: "הצמדה", value: result.totalLinkage, color: .linkage),
+            Part(label: "עמלה", value: result.fee, color: Color(.systemGray2)),
         ].filter { $0.value > 0 }
     }
 
-    private var costSection: some View {
+    private var cost: some View {
         let parts = parts
         let total = parts.reduce(0) { $0 + $1.value }
-        let extra = result.totalPaid - result.principal
 
-        return Section {
+        return VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .firstTextBaseline) {
+                Text("סך הכול תשלמו")
+                Spacer()
+                MoneyText(value: result.totalPaid)
+            }
+            .fontWeight(.bold)
+            .accessibilityElement(children: .combine)
+
             // One bar split in proportion to each part of the total
             GeometryReader { geo in
                 let gaps = 3 * CGFloat(max(parts.count - 1, 0))
@@ -73,92 +76,146 @@ struct ResultSections: View {
                     }
                 }
             }
-            .frame(height: 14)
+            .frame(height: 12)
             .clipped()
-            .padding(.vertical, 6)
             .animation(.snappy, value: parts.map(\.value))
             .accessibilityHidden(true)
 
-            ForEach(parts) { part in
-                HStack {
-                    RoundedRectangle(cornerRadius: 3)
-                        .fill(part.color)
-                        .frame(width: 12, height: 12)
-                    Text(part.label)
-                    Spacer()
-                    MoneyText(value: part.value)
+            LazyVGrid(columns: Self.twoColumns, alignment: .leading, spacing: 6) {
+                ForEach(parts) { part in
+                    HStack(spacing: 6) {
+                        RoundedRectangle(cornerRadius: 3)
+                            .fill(part.color)
+                            .frame(width: 10, height: 10)
+                        Text(part.label)
+                            .foregroundStyle(.secondary)
+                        Spacer(minLength: 4)
+                        MoneyText(value: part.value, cents: false)
+                    }
+                    .font(.subheadline)
+                    .lineLimit(1)
+                    .accessibilityElement(children: .combine)
                 }
-                .accessibilityElement(children: .combine)
             }
-
-            HStack {
-                Text("סך הכול תשלמו")
-                Spacer()
-                MoneyText(value: result.totalPaid)
-            }
-            .fontWeight(.bold)
-            .accessibilityElement(children: .combine)
-        } header: {
-            Text("כמה זה עולה")
-        } footer: {
-            Text("תחזירו \(Fmt.money(extra, cents: false)) מעבר לסכום שקיבלתם.")
         }
     }
 
-    private func figure(_ label: String, _ caption: String, _ value: String) -> some View {
-        LabeledContent {
+    // MARK: Figures. Only the ones the inputs do not already show.
+
+    private var figures: some View {
+        LazyVGrid(columns: Self.twoColumns, alignment: .leading, spacing: 10) {
+            figure("ריבית שנתית", Fmt.percent(result.annualRate))
+            figure("עלות אשראי שנתית", result.effectiveAnnualCost.map(Fmt.percent) ?? "לא זמין")
+            if abs(result.finalPayment - result.monthlyPayment) > 0.005 {
+                figure(
+                    result.repaymentType == .balloon ? "תשלום אחרון, עם הקרן" : "תשלום אחרון",
+                    Fmt.money(result.finalPayment)
+                )
+            }
+            if result.graceMonths > 0 {
+                figure("מספר תשלומים",
+                       "\(result.months - result.graceMonths) מתוך \(result.months) חודשים")
+            }
+        }
+    }
+
+    private func figure(_ label: String, _ value: String) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(label)
+                .font(.caption)
+                .foregroundStyle(.secondary)
             Text(value)
+                .fontWeight(.medium)
                 .monospacedDigit()
-                .foregroundStyle(.primary)
                 .contentTransition(.numericText())
                 .animation(.snappy(duration: 0.3), value: value)
-        } label: {
-            Text(label)
-            Text(caption)
         }
+        .lineLimit(1)
+        .minimumScaleFactor(0.8)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityElement(children: .combine)
     }
 
-    // MARK: Compare
+    // MARK: Comparison with the saved loan
 
-    @ViewBuilder
-    private var compare: some View {
-        if let saved = store.saved {
-            Section {
+    private func comparison(with saved: SavedScenario) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("לעומת \(Fmt.money(saved.principal, cents: false)), \(saved.months) חודשים, \(saved.repaymentType.label), ריבית \(Fmt.percent(saved.annualRate))")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            LazyVGrid(columns: Self.twoColumns, alignment: .leading, spacing: 10) {
                 delta("תשלום חודשי", result.monthlyPayment - saved.monthlyPayment)
                 delta("סך הכול", result.totalPaid - saved.totalPaid)
-                Button("שמירת הנוכחי במקומו") {
-                    store.saved = SavedScenario(result)
-                }
-                Button("הסרת התרחיש השמור", role: .destructive) {
-                    withAnimation(.snappy) { store.saved = nil }
-                }
-            } header: {
-                Text("לעומת התרחיש השמור")
-            } footer: {
-                Text("\(Fmt.money(saved.principal, cents: false)), \(saved.months) חודשים, \(saved.repaymentType.label), ריבית \(Fmt.percent(saved.annualRate))")
-            }
-        } else {
-            Section {
-                Button("שמירה להשוואה") {
-                    withAnimation(.snappy) { store.saved = SavedScenario(result) }
-                }
-            } footer: {
-                Text("שמרו את ההלוואה הזו, שנו את הנתונים, וראו כמה ההבדל.")
             }
         }
     }
 
     private func delta(_ label: String, _ diff: Double) -> some View {
         let same = abs(diff) < 0.005
-        return LabeledContent(label) {
+        return VStack(alignment: .leading, spacing: 2) {
+            Text(label)
+                .font(.caption)
+                .foregroundStyle(.secondary)
             if same {
                 Text("ללא שינוי")
+                    .fontWeight(.medium)
             } else {
                 MoneyText(value: diff, signed: true)
                     .fontWeight(.semibold)
                     // Paying more takes the cost colour, paying less the ink
-                    .foregroundStyle(diff < 0 ? Color.ink : Color.cost)
+                    .foregroundStyle(diff < 0 ? Color.ink : Color.costText)
             }
         }
+        .lineLimit(1)
+        .minimumScaleFactor(0.8)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityElement(children: .combine)
+    }
+
+    // MARK: Actions
+
+    private var actions: some View {
+        HStack(spacing: 8) {
+            Button {
+                showingSchedule = true
+            } label: {
+                actionLabel("לוח סילוקין")
+            }
+
+            ShareLink(item: LoanReport(result: result), preview: SharePreview("סיכום הלוואה")) {
+                actionLabel("שיתוף")
+            }
+
+            if store.saved == nil {
+                Button {
+                    withAnimation(.snappy) { store.saved = SavedScenario(result) }
+                } label: {
+                    actionLabel("שמירה להשוואה")
+                }
+            } else {
+                Menu {
+                    Button("שמירת הנוכחי במקומו") {
+                        store.saved = SavedScenario(result)
+                    }
+                    Button("הסרת התרחיש השמור", role: .destructive) {
+                        withAnimation(.snappy) { store.saved = nil }
+                    }
+                } label: {
+                    actionLabel("השוואה")
+                }
+            }
+        }
+        .buttonStyle(.bordered)
+        .navigationDestination(isPresented: $showingSchedule) {
+            ScheduleView(result: result)
+        }
+    }
+
+    private func actionLabel(_ title: String) -> some View {
+        Text(title)
+            .font(.subheadline.weight(.medium))
+            .lineLimit(1)
+            .minimumScaleFactor(0.75)
+            .frame(maxWidth: .infinity, minHeight: 30)
     }
 }

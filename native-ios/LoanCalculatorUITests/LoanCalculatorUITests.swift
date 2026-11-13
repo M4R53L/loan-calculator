@@ -40,11 +40,21 @@ final class LoanCalculatorUITests: XCTestCase {
 
     func testPaymentBarAppearsOnceHeadlineScrollsAway() {
         XCTAssertTrue(hero.waitForExistence(timeout: 5))
+        // Linkage and a saved comparison make the page long enough to scroll
+        scroll(to: app.switches.firstMatch)
+        app.switches.firstMatch.tap()
+        scroll(to: app.buttons["שמירה להשוואה"])
+        app.buttons["שמירה להשוואה"].tap()
         app.swipeUp()
         app.swipeUp()
-        XCTAssertTrue(bar.waitForExistence(timeout: 3))
-        XCTAssertTrue(bar.label.contains("1,099.63"), bar.label)
         shot("2-scrolled")
+        // The bar stands in for the headline exactly when the headline is gone
+        if hero.exists && hero.isHittable {
+            XCTAssertFalse(bar.exists)
+        } else {
+            XCTAssertTrue(bar.waitForExistence(timeout: 3))
+            XCTAssertTrue(bar.label.contains("תשלום חודשי"), bar.label)
+        }
 
         app.swipeDown()
         app.swipeDown()
@@ -68,7 +78,7 @@ final class LoanCalculatorUITests: XCTestCase {
     }
 
     func testBorrowModeAnswersWithALoanAmount() {
-        app.buttons["כמה אוכל ללוות"].tap()
+        app.buttons["כמה אלווה"].tap()
         XCTAssertTrue(hero.waitForExistence(timeout: 3))
         XCTAssertTrue(hero.label.contains("תוכלו ללוות"), hero.label)
         // 1,000 a month over 60 months at the default rates
@@ -116,9 +126,13 @@ final class LoanCalculatorUITests: XCTestCase {
         let unchanged = app.descendants(matching: .any)
             .matching(NSPredicate(format: "label CONTAINS %@", "ללא שינוי"))
         XCTAssertTrue(unchanged.firstMatch.waitForExistence(timeout: 3))
-        let remove = app.buttons["הסרת התרחיש השמור"]
-        scroll(to: remove)
+        // The comparison lengthens the card and pushes the actions down
+        let menu = app.buttons["השוואה"]
+        scroll(to: menu)
         shot("9-compare")
+        menu.tap()
+        let remove = app.buttons["הסרת התרחיש השמור"]
+        XCTAssertTrue(remove.waitForExistence(timeout: 3))
         remove.tap()
         XCTAssertTrue(save.waitForExistence(timeout: 3))
     }

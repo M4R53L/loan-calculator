@@ -31,8 +31,8 @@ enum CalcMode: String, CaseIterable, Identifiable, Sendable {
 
     var label: String {
         switch self {
-        case .payment: "כמה אשלם בחודש"
-        case .borrow: "כמה אוכל ללוות"
+        case .payment: "כמה אשלם"
+        case .borrow: "כמה אלווה"
         }
     }
 }
@@ -51,7 +51,7 @@ final class LoanStore {
         static let fee = "490"
         static let inflation = "3"
         /// When the default prime rate was last checked
-        static let primeAsOf = "נובמבר 2026"
+        static let primeAsOf = "11/2026"
     }
 
     static let minTarget = 200.0

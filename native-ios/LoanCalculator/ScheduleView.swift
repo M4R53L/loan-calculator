@@ -14,6 +14,7 @@ struct ScheduleView: View {
                         showLinkage: result.isCpiLinked
                     )
                 }
+                .listRowBackground(Color.card)
             } header: {
                 Text("הפס בכל שורה מראה כמה מהתשלום הוא קרן וכמה ריבית.")
                     .textCase(nil)
@@ -21,6 +22,8 @@ struct ScheduleView: View {
                 Text("סך הכול \(Fmt.money(result.totalInstallments)) ב־\(result.months) חודשים, לא כולל עמלת פתיחת תיק.")
             }
         }
+        .scrollContentBackground(.hidden)
+        .background(Color.canvas)
         .navigationTitle("לוח סילוקין")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
