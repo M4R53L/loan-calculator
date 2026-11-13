@@ -1,374 +1,710 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:intl/intl.dart';
+
 import '../models/loan_result.dart';
+import '../models/scenario.dart';
+import '../services/input_store.dart';
 import '../services/loan_calculator.dart';
+import '../theme/app_theme.dart';
+import '../util/format.dart';
+import '../widgets/animated_number.dart';
+import '../widgets/labeled_field.dart';
+import '../widgets/pressable.dart';
+import '../widgets/result_panel.dart';
+import '../widgets/schedule_table.dart';
+import '../widgets/track_selector.dart';
 
 class CalculatorScreen extends StatefulWidget {
-  const CalculatorScreen({Key? key}) : super(key: key);
+  const CalculatorScreen({super.key});
 
   @override
   State<CalculatorScreen> createState() => _CalculatorScreenState();
 }
 
 class _CalculatorScreenState extends State<CalculatorScreen> {
-  final _formKey = GlobalKey<FormState>();
-  final _principalController = TextEditingController(text: '50000');
-  final _primeController = TextEditingController(text: '1.6');
-  final _marginController = TextEditingController(text: '5.1');
-  final _monthsController = TextEditingController(text: '60');
+  static const _defaults = {
+    'principal': '50,000',
+    'months': '60',
+    'prime': '4.75',
+    'margin': '6.75',
+    'fee': '490',
+    'inflation': '3',
+  };
 
-  LoanResult? _result;
-  bool _showSchedule = false;
+  late final Map<String, TextEditingController> _fields = {
+    for (final e in _defaults.entries)
+      e.key: TextEditingController(text: e.value),
+  };
+  TextEditingController get _principal => _fields['principal']!;
+  TextEditingController get _months => _fields['months']!;
+  TextEditingController get _prime => _fields['prime']!;
+  TextEditingController get _margin => _fields['margin']!;
+  TextEditingController get _fee => _fields['fee']!;
+  TextEditingController get _inflation => _fields['inflation']!;
 
-  final NumberFormat _currencyFormat = NumberFormat.currency(
-    symbol: '₪',
-    decimalDigits: 2,
-    locale: 'he_IL',
-  );
+  RepaymentType _track = RepaymentType.spitzer;
+  bool _cpiLinked = false;
+  SavedScenario? _saved;
 
-  final NumberFormat _percentFormat = NumberFormat.decimalPattern()..minimumFractionDigits = 1;
+  @override
+  void initState() {
+    super.initState();
+    _restore();
+  }
+
+  /// Brings back the last session's inputs and pinned comparison.
+  Future<void> _restore() async {
+    final inputs = await InputStore.loadInputs();
+    final saved = await InputStore.loadSaved();
+    if (!mounted) return;
+    setState(() {
+      if (inputs != null) {
+        for (final e in _fields.entries) {
+          final v = inputs[e.key];
+          if (v != null) e.value.text = v;
+        }
+        _track = RepaymentType.values
+                .where((t) => t.name == inputs['track'])
+                .firstOrNull ??
+            _track;
+        _cpiLinked = inputs['cpi'] == 'true';
+      }
+      _saved = saved;
+    });
+  }
+
+  void _persist() => InputStore.saveInputs({
+        for (final e in _fields.entries) e.key: e.value.text,
+        'track': _track.name,
+        'cpi': '$_cpiLinked',
+      });
 
   @override
   void dispose() {
-    _principalController.dispose();
-    _primeController.dispose();
-    _marginController.dispose();
-    _monthsController.dispose();
+    for (final c in _fields.values) {
+      c.dispose();
+    }
     super.dispose();
   }
 
-  void _calculate() {
-    if (!_formKey.currentState!.validate()) {
-      return;
-    }
+  void _changed([Object? _]) {
+    setState(() {});
+    _persist();
+  }
 
-    final double principal = double.parse(_principalController.text);
-    final double prime = double.parse(_primeController.text);
-    final double margin = double.parse(_marginController.text);
-    final int months = int.parse(_monthsController.text);
+  void _setPrincipal(double v) {
+    _principal.text = amount(v).split('.').first;
+    _changed();
+  }
 
-    final String? error = LoanCalculator.validateInputs(
-      principal: principal,
-      prime: prime,
-      margin: margin,
-      months: months,
-    );
+  void _setMonths(int v) {
+    _months.text = '$v';
+    _changed();
+  }
 
-    if (error != null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(error), backgroundColor: Colors.red),
-      );
-      return;
-    }
-
+  void _reset() {
+    HapticFeedback.lightImpact();
+    FocusScope.of(context).unfocus();
     setState(() {
-      _result = LoanCalculator.calculate(
-        principal: principal,
-        prime: prime,
-        margin: margin,
-        months: months,
-        generateSchedule: _showSchedule,
-      );
+      for (final e in _defaults.entries) {
+        _fields[e.key]!.text = e.value;
+      }
+      _track = RepaymentType.spitzer;
+      _cpiLinked = false;
     });
+    InputStore.clearInputs();
+  }
+
+  void _setSaved(SavedScenario? s) {
+    HapticFeedback.lightImpact();
+    setState(() => _saved = s);
+    InputStore.setSaved(s);
+  }
+
+  // Field validation. Messages are shown under the field they belong to.
+
+  String? get _principalError {
+    final v = parseNumber(_principal.text);
+    if (v == null) return 'הזינו את סכום ההלוואה';
+    if (v < LoanCalculator.minPrincipal || v > LoanCalculator.maxPrincipal) {
+      return 'הסכום צריך להיות 15,000 עד 400,000 ₪';
+    }
+    return null;
+  }
+
+  String? get _monthsError {
+    final v = int.tryParse(_months.text);
+    if (v == null) return 'הזינו מספר חודשים';
+    if (v < LoanCalculator.minMonths || v > LoanCalculator.maxMonths) {
+      return '12 עד 100 חודשים';
+    }
+    return null;
+  }
+
+  String? _rateError(TextEditingController c, String name) {
+    final v = parseNumber(c.text);
+    if (v == null) return 'הזינו $name';
+    if (v < 0) return 'לא יכול להיות שלילי';
+    return null;
+  }
+
+  String? get _primeError => _rateError(_prime, 'ריבית פריים');
+
+  String? get _marginError {
+    final own = _rateError(_margin, 'מרווח');
+    if (own != null) return own;
+    final total = (parseNumber(_prime.text) ?? 0) + parseNumber(_margin.text)!;
+    if (total > 50) return 'ריבית שנתית מעל 50% אינה סבירה';
+    return null;
+  }
+
+  String? get _feeError {
+    final v = parseNumber(_fee.text);
+    if (v == null) return 'הזינו עמלה, או 0';
+    final principal = parseNumber(_principal.text);
+    if (principal != null && v >= principal) {
+      return 'העמלה צריכה להיות קטנה מסכום ההלוואה';
+    }
+    return null;
+  }
+
+  String? get _inflationError {
+    if (!_cpiLinked) return null;
+    final v = parseNumber(_inflation.text);
+    if (v == null) return 'הזינו שיעור מדד משוער';
+    if (v < -10 || v > 30) return 'מינוס 10% עד 30%';
+    return null;
+  }
+
+  LoanResult? get _result {
+    final errors = [
+      _principalError,
+      _monthsError,
+      _primeError,
+      _marginError,
+      _feeError,
+      _inflationError,
+    ];
+    if (errors.any((e) => e != null)) return null;
+
+    return LoanCalculator.calculate(
+      principal: parseNumber(_principal.text)!,
+      prime: parseNumber(_prime.text)!,
+      margin: parseNumber(_margin.text)!,
+      months: int.parse(_months.text),
+      repaymentType: _track,
+      fee: parseNumber(_fee.text)!,
+      annualInflationPercent: _cpiLinked ? parseNumber(_inflation.text)! : 0,
+      generateSchedule: true,
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('חישוב ריבית של הבנק'),
-        centerTitle: true,
-        elevation: 2,
-      ),
-      body: SafeArea(
-        child: Column(
-          children: [
-            Expanded(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.all(16.0),
-                child: Form(
-                  key: _formKey,
+    final t = context.tokens;
+    final result = _result;
+    final narrow = MediaQuery.sizeOf(context).width < 920;
+
+    // Tapping anywhere outside a field closes the keyboard. The iOS number
+    // pad has no return key, so this is the only way to put it away.
+    return GestureDetector(
+      behavior: HitTestBehavior.translucent,
+      onTap: () => FocusManager.instance.primaryFocus?.unfocus(),
+      child: Scaffold(
+        // On narrow screens the result sits below the form, so keep the
+        // monthly payment in view while editing.
+        bottomNavigationBar:
+            narrow && result != null ? _PaymentBar(result: result) : null,
+        body: SafeArea(
+          child: LayoutBuilder(builder: (context, constraints) {
+            final wide = constraints.maxWidth >= 920;
+            final gutter = constraints.maxWidth < 600 ? 16.0 : 32.0;
+
+            final inputs = _InputsPanel(
+              principal: _principal,
+              months: _months,
+              prime: _prime,
+              margin: _margin,
+              fee: _fee,
+              inflation: _inflation,
+              track: _track,
+              cpiLinked: _cpiLinked,
+              errors: _Errors(
+                principal: _principalError,
+                months: _monthsError,
+                prime: _primeError,
+                margin: _marginError,
+                fee: _feeError,
+                inflation: _inflationError,
+              ),
+              onChanged: _changed,
+              onPrincipalSlide: _setPrincipal,
+              onMonthsPick: _setMonths,
+              onTrackChanged: (v) {
+                _track = v;
+                _changed();
+              },
+              onCpiChanged: (v) {
+                HapticFeedback.selectionClick();
+                _cpiLinked = v;
+                _changed();
+              },
+              onReset: _reset,
+            );
+            final results = ResultPanel(
+              result: result,
+              saved: _saved,
+              onSave: result == null
+                  ? null
+                  : () => _setSaved(SavedScenario.fromResult(result)),
+              onClearSaved: () => _setSaved(null),
+            );
+
+            return SingleChildScrollView(
+              keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+              padding: EdgeInsets.fromLTRB(gutter, wide ? 48 : 24, gutter, 48),
+              child: Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 1160),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      _buildInputCard(),
-                      const SizedBox(height: 16),
-                      _buildCalculateButton(),
-                      if (_result != null) ...[
-                        const SizedBox(height: 24),
-                        _buildResultCard(),
+                      Text(
+                        'מחשבון הלוואה',
+                        style: TextStyle(
+                          fontSize: wide ? 34 : 28,
+                          fontWeight: FontWeight.w600,
+                          letterSpacing: -0.4,
+                          color: t.ink,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        'כמה תשלמו בכל חודש, ומה ההלוואה עולה באמת.',
+                        style: TextStyle(fontSize: 16, color: t.muted),
+                      ),
+                      SizedBox(height: wide ? 36 : 24),
+                      if (wide)
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(flex: 5, child: inputs),
+                            const SizedBox(width: 24),
+                            Expanded(flex: 6, child: results),
+                          ],
+                        )
+                      else ...[
+                        inputs,
                         const SizedBox(height: 16),
-                        _buildScheduleToggle(),
-                        if (_showSchedule && _result?.schedule != null) ...[
-                          const SizedBox(height: 16),
-                          _buildScheduleTable(),
-                        ],
+                        results,
+                      ],
+                      if (result != null) ...[
+                        const SizedBox(height: 24),
+                        ScheduleTable(result: result),
                       ],
                     ],
                   ),
                 ),
               ),
-            ),
-          ],
+            );
+          }),
         ),
       ),
     );
   }
+}
 
-  Widget _buildInputCard() {
-    return Card(
-      elevation: 4,
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'פרטי ההלוואה',
-              style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
-            ),
-            const SizedBox(height: 16),
-            _buildTextField(
-              controller: _principalController,
-              label: 'הסכום של ההלוואה (₪)',
-              icon: Icons.attach_money,
-              keyboardType: TextInputType.number,
-            ),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(
-                  child: _buildTextField(
-                    controller: _primeController,
-                    label: 'פריים (%)',
-                    icon: Icons.trending_up,
-                    keyboardType: TextInputType.numberWithOptions(decimal: true),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: _buildTextField(
-                    controller: _marginController,
-                    label: 'ריבית (%)',
-                    icon: Icons.percent,
-                    keyboardType: TextInputType.numberWithOptions(decimal: true),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            _buildTextField(
-              controller: _monthsController,
-              label: 'מספר חודשים',
-              icon: Icons.calendar_month,
-              keyboardType: TextInputType.number,
-            ),
-          ],
-        ),
+class _PaymentBar extends StatelessWidget {
+  const _PaymentBar({required this.result});
+
+  final LoanResult result;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    return Container(
+      decoration: BoxDecoration(
+        color: t.panel,
+        border: Border(top: BorderSide(color: t.line)),
       ),
-    );
-  }
-
-  Widget _buildTextField({
-    required TextEditingController controller,
-    required String label,
-    required IconData icon,
-    required TextInputType keyboardType,
-  }) {
-    return TextFormField(
-      controller: controller,
-      keyboardType: keyboardType,
-      decoration: InputDecoration(
-        labelText: label,
-        prefixIcon: Icon(icon),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(8),
-        ),
-        filled: true,
-        fillColor: Colors.grey[50],
-      ),
-      inputFormatters: [
-        FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
-      ],
-      validator: (value) {
-        if (value == null || value.isEmpty) {
-          return 'שדה חובה';
-        }
-        if (double.tryParse(value) == null) {
-          return 'מספר לא תקין';
-        }
-        return null;
-      },
-    );
-  }
-
-  Widget _buildCalculateButton() {
-    return ElevatedButton.icon(
-      onPressed: _calculate,
-      icon: const Icon(Icons.calculate),
-      label: const Text('חשב'),
-      style: ElevatedButton.styleFrom(
-        padding: const EdgeInsets.symmetric(vertical: 16),
-        textStyle: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-      ),
-    );
-  }
-
-  Widget _buildResultCard() {
-    if (_result == null) return const SizedBox.shrink();
-
-    return Card(
-      elevation: 4,
-      color: Colors.green[50],
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'תוצאות',
-              style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                    fontWeight: FontWeight.bold,
-                    color: Colors.green[900],
-                  ),
-            ),
-            const Divider(height: 24),
-            _buildResultRow(
-              'ריבית שנתית',
-              '${_percentFormat.format(_result!.annualRate)}%',
-              subtitle: 'פריים + ריבית',
-            ),
-            const SizedBox(height: 12),
-            _buildResultRow(
-              'תשלום חודשי',
-              _currencyFormat.format(_result!.monthlyPayment),
-              isHighlight: true,
-            ),
-            const SizedBox(height: 12),
-            _buildResultRow(
-              'הסכום של הריבית',
-              _currencyFormat.format(_result!.totalInterest),
-            ),
-            const SizedBox(height: 12),
-            _buildResultRow(
-              'סה"כ להחזר',
-              _currencyFormat.format(_result!.totalPaid),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildResultRow(String label, String value, {String? subtitle, bool isHighlight = false}) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+      child: SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          child: Row(
             children: [
-              Text(
-                label,
-                style: TextStyle(
-                  fontSize: isHighlight ? 18 : 16,
-                  fontWeight: isHighlight ? FontWeight.bold : FontWeight.normal,
+              Expanded(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('תשלום חודשי',
+                        style: TextStyle(fontSize: 13, color: t.muted)),
+                    Text(
+                      'עלות אשראי ${percent(result.effectiveAnnualCost ?? result.annualRate)}',
+                      style: TextStyle(
+                          fontSize: 12.5,
+                          color: t.muted,
+                          fontFeatures: tabular),
+                    ),
+                  ],
                 ),
               ),
-              if (subtitle != null)
-                Text(
-                  subtitle,
-                  style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+              AnimatedNumber(
+                value: result.monthlyPayment,
+                format: money,
+                style: TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.w600,
+                  color: t.ink,
+                  fontFeatures: tabular,
                 ),
+              ),
             ],
           ),
         ),
-        Text(
-          value,
-          style: TextStyle(
-            fontSize: isHighlight ? 20 : 18,
-            fontWeight: FontWeight.bold,
-            color: isHighlight ? Colors.green[900] : Colors.black87,
-          ),
-        ),
-      ],
+      ),
     );
   }
+}
 
-  Widget _buildScheduleToggle() {
-    return SwitchListTile(
-      title: const Text('הצג לוח סילוקין'),
-      subtitle: const Text('פירוט תשלומים לפי חודשים'),
-      value: _showSchedule,
-      onChanged: (value) {
-        setState(() {
-          _showSchedule = value;
-          if (value) {
-            _calculate(); // Recalculate with schedule
-          }
-        });
-      },
-    );
-  }
+class _Errors {
+  const _Errors({
+    this.principal,
+    this.months,
+    this.prime,
+    this.margin,
+    this.fee,
+    this.inflation,
+  });
 
-  Widget _buildScheduleTable() {
-    final schedule = _result?.schedule;
-    if (schedule == null || schedule.isEmpty) {
-      return const SizedBox.shrink();
+  final String? principal, months, prime, margin, fee, inflation;
+}
+
+class _InputsPanel extends StatelessWidget {
+  const _InputsPanel({
+    required this.principal,
+    required this.months,
+    required this.prime,
+    required this.margin,
+    required this.fee,
+    required this.inflation,
+    required this.track,
+    required this.cpiLinked,
+    required this.errors,
+    required this.onChanged,
+    required this.onPrincipalSlide,
+    required this.onMonthsPick,
+    required this.onTrackChanged,
+    required this.onCpiChanged,
+    required this.onReset,
+  });
+
+  static const _termPicks = [24, 36, 48, 60, 84];
+
+  final TextEditingController principal, months, prime, margin, fee, inflation;
+  final RepaymentType track;
+  final bool cpiLinked;
+  final _Errors errors;
+  final ValueChanged<String> onChanged;
+  final ValueChanged<double> onPrincipalSlide;
+  final ValueChanged<int> onMonthsPick;
+  final ValueChanged<RepaymentType> onTrackChanged;
+  final ValueChanged<bool> onCpiChanged;
+  final VoidCallback onReset;
+
+  static String _trackHint(RepaymentType type) {
+    switch (type) {
+      case RepaymentType.spitzer:
+        return 'תשלום קבוע בכל חודש. בהתחלה רובו ריבית, ובהמשך רובו קרן.';
+      case RepaymentType.balloon:
+        return 'משלמים רק ריבית בכל חודש, ואת כל הקרן בתשלום האחרון.';
+      case RepaymentType.grace:
+        return 'שלושה חודשים ראשונים בלי תשלומים. '
+            'הריבית שנצברת מתווספת לחוב ונפרסת על שאר התקופה.';
     }
+  }
 
-    return Card(
-      elevation: 4,
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    final reduceMotion = MediaQuery.disableAnimationsOf(context);
+    final decimal = [DecimalFormatter()];
+
+    Widget group(String title, List<Widget> children) => Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(title,
+                style: TextStyle(
+                    fontSize: 15, fontWeight: FontWeight.w600, color: t.ink)),
+            const SizedBox(height: 16),
+            ...children,
+          ],
+        );
+
+    Widget pair(Widget a, Widget b) => Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(child: a),
+            const SizedBox(width: 12),
+            Expanded(child: b),
+          ],
+        );
+
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: t.panel,
+        borderRadius: BorderRadius.circular(AppTokens.panelRadius),
+        border: Border.all(color: t.line),
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Container(
-            padding: const EdgeInsets.all(12),
-            color: Colors.blue[700],
-            child: Text(
-              'לוח סילוקין',
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
+          group('ההלוואה', [
+            LabeledField(
+              label: 'סכום ההלוואה',
+              controller: principal,
+              onChanged: onChanged,
+              suffix: '₪',
+              helper: '15,000 עד 400,000 ₪',
+              error: errors.principal,
+              inputFormatters: [ThousandsFormatter()],
+            ),
+            _StepSlider(
+              value: parseNumber(principal.text) ?? LoanCalculator.minPrincipal,
+              min: LoanCalculator.minPrincipal,
+              max: LoanCalculator.maxPrincipal,
+              step: 5000,
+              semanticFormat: (v) => '${amount(v).split('.').first} שקלים',
+              onChanged: onPrincipalSlide,
+            ),
+            const SizedBox(height: 8),
+            LabeledField(
+              label: 'תקופה',
+              controller: months,
+              onChanged: onChanged,
+              suffix: 'חודשים',
+              helper: '12 עד 100 תשלומים',
+              error: errors.months,
+              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+            ),
+            _StepSlider(
+              value: (int.tryParse(months.text) ?? LoanCalculator.minMonths)
+                  .toDouble(),
+              min: LoanCalculator.minMonths.toDouble(),
+              max: LoanCalculator.maxMonths.toDouble(),
+              step: 1,
+              semanticFormat: (v) => '${v.round()} חודשים',
+              onChanged: (v) => onMonthsPick(v.round()),
+            ),
+            Row(
+              children: [
+                for (int i = 0; i < _termPicks.length; i++) ...[
+                  if (i > 0) const SizedBox(width: 6),
+                  Expanded(
+                    child: _TermChip(
+                      months: _termPicks[i],
+                      selected: int.tryParse(months.text) == _termPicks[i],
+                      onTap: () => onMonthsPick(_termPicks[i]),
+                    ),
                   ),
-            ),
-          ),
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: DataTable(
-              columnSpacing: 16,
-              headingRowColor: MaterialStateProperty.all(Colors.blue[50]),
-              columns: const [
-                DataColumn(label: Text('חודש', style: TextStyle(fontWeight: FontWeight.bold))),
-                DataColumn(label: Text('תשלום', style: TextStyle(fontWeight: FontWeight.bold))),
-                DataColumn(label: Text('ריבית', style: TextStyle(fontWeight: FontWeight.bold))),
-                DataColumn(label: Text('קרן', style: TextStyle(fontWeight: FontWeight.bold))),
-                DataColumn(label: Text('יתרה', style: TextStyle(fontWeight: FontWeight.bold))),
+                ],
               ],
-              rows: schedule.take(12).map((row) {
-                return DataRow(cells: [
-                  DataCell(Text(row.month.toString())),
-                  DataCell(Text(_currencyFormat.format(row.payment))),
-                  DataCell(Text(_currencyFormat.format(row.interestPortion))),
-                  DataCell(Text(_currencyFormat.format(row.principalPortion))),
-                  DataCell(Text(_currencyFormat.format(row.remainingBalance))),
-                ]);
-              }).toList(),
             ),
-          ),
-          if (schedule.length > 12)
-            Padding(
-              padding: const EdgeInsets.all(12.0),
-              child: Text(
-                'מוצגים 12 חודשים ראשונים מתוך ${schedule.length}',
-                style: TextStyle(fontSize: 12, color: Colors.grey[600]),
-                textAlign: TextAlign.center,
+          ]),
+          const SizedBox(height: 28),
+          group('ריבית', [
+            pair(
+              LabeledField(
+                label: 'ריבית פריים',
+                controller: prime,
+                onChanged: onChanged,
+                suffix: '%',
+                error: errors.prime,
+                inputFormatters: decimal,
+                keyboardType:
+                    const TextInputType.numberWithOptions(decimal: true),
+              ),
+              LabeledField(
+                label: 'מרווח מעל הפריים',
+                controller: margin,
+                onChanged: onChanged,
+                suffix: '%',
+                error: errors.margin,
+                inputFormatters: decimal,
+                keyboardType:
+                    const TextInputType.numberWithOptions(decimal: true),
               ),
             ),
+          ]),
+          const SizedBox(height: 28),
+          group('מסלול החזר', [
+            TrackSelector(value: track, onChanged: onTrackChanged),
+            const SizedBox(height: 10),
+            Text(
+              _trackHint(track),
+              style: TextStyle(fontSize: 13.5, color: t.muted, height: 1.5),
+            ),
+          ]),
+          const SizedBox(height: 28),
+          group('עמלות והצמדה', [
+            LabeledField(
+              label: 'עמלת פתיחת תיק',
+              controller: fee,
+              onChanged: onChanged,
+              suffix: '₪',
+              helper: 'נכללת בעלות האשראי השנתית',
+              error: errors.fee,
+              inputFormatters: [ThousandsFormatter()],
+            ),
+            const SizedBox(height: 12),
+            MergeSemantics(
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('צמוד למדד',
+                            style: TextStyle(
+                                fontSize: 14.5,
+                                fontWeight: FontWeight.w500,
+                                color: t.ink)),
+                        Text('הקרן מתעדכנת לפי מדד המחירים לצרכן',
+                            style: TextStyle(fontSize: 12.5, color: t.muted)),
+                      ],
+                    ),
+                  ),
+                  Switch(value: cpiLinked, onChanged: onCpiChanged),
+                ],
+              ),
+            ),
+            AnimatedSize(
+              duration: reduceMotion
+                  ? Duration.zero
+                  : const Duration(milliseconds: 200),
+              curve: Curves.easeOutCubic,
+              alignment: AlignmentDirectional.topStart,
+              child: cpiLinked
+                  ? Padding(
+                      padding: const EdgeInsets.only(top: 12),
+                      child: LabeledField(
+                        label: 'מדד שנתי משוער',
+                        controller: inflation,
+                        onChanged: onChanged,
+                        suffix: '%',
+                        helper: 'הערכה בלבד. המדד בפועל ישנה את התשלומים.',
+                        error: errors.inflation,
+                        inputFormatters: [
+                          DecimalFormatter(allowNegative: true)
+                        ],
+                        keyboardType: const TextInputType.numberWithOptions(
+                            decimal: true, signed: true),
+                      ),
+                    )
+                  : const SizedBox(width: double.infinity),
+            ),
+          ]),
+          const SizedBox(height: 16),
+          Align(
+            alignment: AlignmentDirectional.centerStart,
+            child: TextButton(
+              onPressed: onReset,
+              style: TextButton.styleFrom(
+                foregroundColor: t.muted,
+                minimumSize: const Size(44, 44),
+                textStyle:
+                    const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+              ),
+              child: const Text('איפוס לערכי ברירת המחדל'),
+            ),
+          ),
         ],
+      ),
+    );
+  }
+}
+
+/// Slider under a typed field, for coarse changes with the thumb. Ticks the
+/// haptic engine on each step. Typed values outside the range pin the thumb
+/// to the nearest end without touching the text.
+class _StepSlider extends StatelessWidget {
+  const _StepSlider({
+    required this.value,
+    required this.min,
+    required this.max,
+    required this.step,
+    required this.semanticFormat,
+    required this.onChanged,
+  });
+
+  final double value, min, max, step;
+  final String Function(double) semanticFormat;
+  final ValueChanged<double> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final current = value.clamp(min, max).toDouble();
+    return SizedBox(
+      height: 44,
+      child: Slider(
+        value: current,
+        min: min,
+        max: max,
+        divisions: ((max - min) / step).round(),
+        semanticFormatterCallback: semanticFormat,
+        onChanged: (v) {
+          if ((v - current).abs() >= step / 2) {
+            HapticFeedback.selectionClick();
+            onChanged(v);
+          }
+        },
+      ),
+    );
+  }
+}
+
+/// One-tap common loan term.
+class _TermChip extends StatelessWidget {
+  const _TermChip({
+    required this.months,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final int months;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    return Pressable(
+      onTap: onTap,
+      selected: selected,
+      semanticLabel: '$months חודשים',
+      child: AnimatedContainer(
+        duration: motionFor(context),
+        curve: motionCurve,
+        height: 44,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: selected ? t.accentWeak : Colors.transparent,
+          borderRadius: BorderRadius.circular(AppTokens.controlRadius),
+          border: Border.all(color: selected ? t.accent : t.line),
+        ),
+        child: ExcludeSemantics(
+          child: Text(
+            '$months',
+            style: TextStyle(
+              fontSize: 14.5,
+              fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
+              color: selected ? t.accent : t.ink,
+              fontFeatures: tabular,
+            ),
+          ),
+        ),
       ),
     );
   }

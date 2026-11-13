@@ -9,7 +9,10 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  intl: ^0.19.0
+  flutter_localizations:
+    sdk: flutter
+  intl: ^0.20.2
+  shared_preferences: ^2.5.6
 
 dev_dependencies:
   flutter_test:
@@ -18,3 +21,14 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+  fonts:
+    - family: IBM Plex Sans Hebrew
+      fonts:
+        - asset: assets/fonts/IBMPlexSansHebrew-Regular.ttf
+          weight: 400
+        - asset: assets/fonts/IBMPlexSansHebrew-Medium.ttf
+          weight: 500
+        - asset: assets/fonts/IBMPlexSansHebrew-SemiBold.ttf
+          weight: 600
+        - asset: assets/fonts/IBMPlexSansHebrew-Bold.ttf
+          weight: 700
