@@ -1,0 +1,2 @@
+/* The app is Hebrew only. This file marks Hebrew as the app's language so
+   iOS lays it out right to left and localizes system controls. */

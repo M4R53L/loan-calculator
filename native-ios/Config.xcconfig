@@ -1,0 +1,4 @@
+// Per-developer settings live in Local.xcconfig, which git ignores.
+// To sign for a real device, create Local.xcconfig next to this file with:
+//   DEVELOPMENT_TEAM = YOUR_TEAM_ID
+#include? "Local.xcconfig"
