@@ -1,25 +1,6 @@
 import Foundation
 import Observation
 
-/// A loan the user pinned, to compare the current inputs against.
-struct SavedScenario: Codable, Equatable, Sendable {
-    let principal: Double
-    let months: Int
-    let repaymentType: RepaymentType
-    let annualRate: Double
-    let monthlyPayment: Double
-    let totalPaid: Double
-
-    init(_ r: LoanResult) {
-        principal = r.principal
-        months = r.months
-        repaymentType = r.repaymentType
-        annualRate = r.annualRate
-        monthlyPayment = r.monthlyPayment
-        totalPaid = r.totalPaid
-    }
-}
-
 /// Which question the calculator answers
 enum CalcMode: String, CaseIterable, Identifiable, Sendable {
     /// Loan amount in, monthly payment out
@@ -48,8 +29,9 @@ final class LoanStore {
         static let months = "60"
         static let prime = "4.75"
         static let margin = "6.75"
-        static let fee = "490"
         static let inflation = "3"
+        /// Most consumer loans are linked, so the switch starts on
+        static let cpiLinked = true
         /// When the default prime rate was last checked
         static let primeAsOf = "11/2026"
     }
@@ -57,26 +39,34 @@ final class LoanStore {
     static let minTarget = 200.0
     static let maxTarget = 10_000.0
 
-    var mode: CalcMode { didSet { save(mode.rawValue, "mode") } }
-    var targetText: String { didSet { save(targetText, "target") } }
+    var mode: CalcMode { didSet { save(mode.rawValue, "mode"); recompute() } }
+    var targetText: String { didSet { save(targetText, "target"); recompute() } }
 
-    var principalText: String { didSet { save(principalText, "principal") } }
-    var monthsText: String { didSet { save(monthsText, "months") } }
-    var primeText: String { didSet { save(primeText, "prime") } }
-    var marginText: String { didSet { save(marginText, "margin") } }
-    var feeText: String { didSet { save(feeText, "fee") } }
-    var inflationText: String { didSet { save(inflationText, "inflation") } }
-    var track: RepaymentType { didSet { save(track.rawValue, "track") } }
-    var cpiLinked: Bool { didSet { defaults.set(cpiLinked, forKey: "cpi") } }
-    var saved: SavedScenario? {
-        didSet {
-            if let saved, let data = try? JSONEncoder().encode(saved) {
-                defaults.set(data, forKey: "saved")
-            } else {
-                defaults.removeObject(forKey: "saved")
-            }
-        }
+    var principalText: String { didSet { save(principalText, "principal"); recompute() } }
+    var monthsText: String { didSet { save(monthsText, "months"); recompute() } }
+    var primeText: String { didSet { save(primeText, "prime"); recompute() } }
+    var marginText: String { didSet { save(marginText, "margin"); recompute() } }
+    var inflationText: String { didSet { save(inflationText, "inflation"); recompute() } }
+    var track: RepaymentType { didSet { save(track.rawValue, "track"); recompute() } }
+    var cpiLinked: Bool { didSet { defaults.set(cpiLinked, forKey: "cpi"); recompute() } }
+
+    /// The answer for the inputs as they are, nil while any is missing or
+    /// out of range. Worked out once per change, not on every read, and
+    /// published only when it actually changes, so the views showing it
+    /// redraw only then.
+    private(set) var result: LoanResult?
+    /// The last valid answer. It holds the layout while an input is out of
+    /// range, with --- in place of the numbers.
+    private(set) var lastResult: LoanResult?
+
+    /// The latest index from the Central Bureau of Statistics, once fetched
+    private(set) var cpi: CPIReading? {
+        didSet { defaults.set(cpi.flatMap { try? JSONEncoder().encode($0) }, forKey: "cbsCPI") }
     }
+
+    /// True while the inflation field holds the published rate, not one the
+    /// user typed
+    var inflationIsFromCBS: Bool { cpi.map { $0.text == inflationText } ?? false }
 
     @ObservationIgnored private let defaults: UserDefaults
 
@@ -88,12 +78,20 @@ final class LoanStore {
         monthsText = defaults.string(forKey: "months") ?? Defaults.months
         primeText = defaults.string(forKey: "prime") ?? Defaults.prime
         marginText = defaults.string(forKey: "margin") ?? Defaults.margin
-        feeText = defaults.string(forKey: "fee") ?? Defaults.fee
         inflationText = defaults.string(forKey: "inflation") ?? Defaults.inflation
         track = defaults.string(forKey: "track").flatMap(RepaymentType.init) ?? .spitzer
-        cpiLinked = defaults.bool(forKey: "cpi")
-        saved = defaults.data(forKey: "saved")
-            .flatMap { try? JSONDecoder().decode(SavedScenario.self, from: $0) }
+        cpiLinked = defaults.object(forKey: "cpi") as? Bool ?? Defaults.cpiLinked
+        cpi = defaults.data(forKey: "cbsCPI").flatMap { try? JSONDecoder().decode(CPIReading.self, from: $0) }
+        // Left by features that have been removed: comparison, and the fee
+        defaults.removeObject(forKey: "saved")
+        defaults.removeObject(forKey: "fee")
+        recompute()
+    }
+
+    private func recompute() {
+        let new = computedResult
+        if new != result { result = new }
+        if let new, new != lastResult { lastResult = new }
     }
 
     private func save(_ value: String, _ key: String) {
@@ -107,10 +105,30 @@ final class LoanStore {
         monthsText = Defaults.months
         primeText = Defaults.prime
         marginText = Defaults.margin
-        feeText = Defaults.fee
-        inflationText = Defaults.inflation
+        inflationText = cpi?.text ?? Defaults.inflation
         track = .spitzer
-        cpiLinked = false
+        cpiLinked = Defaults.cpiLinked
+    }
+
+    // MARK: The published inflation rate
+
+    /// Fetches the latest index, at most twice a day. Without a connection
+    /// nothing changes: the field keeps its last value and stays editable.
+    func refreshCPI(now: Date = .now,
+                    fetch: () async throws -> CPIReading = { try await CBS.latest() }) async {
+        let last = defaults.object(forKey: "cbsFetchedAt") as? Date
+        if let last, now.timeIntervalSince(last) < 12 * 60 * 60 { return }
+        guard let reading = try? await fetch() else { return }
+        defaults.set(now, forKey: "cbsFetchedAt")
+        apply(reading)
+    }
+
+    /// Takes in a new reading. The field follows it unless the user typed
+    /// a rate of their own.
+    func apply(_ reading: CPIReading) {
+        let untouched = inflationText == Defaults.inflation || inflationIsFromCBS
+        cpi = reading
+        if untouched { inflationText = reading.text }
     }
 
     // MARK: Validation. Each message is shown under its own field.
@@ -182,14 +200,6 @@ final class LoanStore {
         return nil
     }
 
-    var feeError: String? {
-        guard let fee = Fmt.parse(feeText) else { return "הזינו עמלה, או 0" }
-        if let principal = principalValue, fee >= principal {
-            return "העמלה צריכה להיות קטנה מסכום ההלוואה"
-        }
-        return nil
-    }
-
     var inflationError: String? {
         guard cpiLinked else { return nil }
         guard let v = Fmt.parse(inflationText) else { return "הזינו שיעור מדד משוער" }
@@ -197,17 +207,15 @@ final class LoanStore {
         return nil
     }
 
-    /// Nil while any input is missing or invalid.
-    var result: LoanResult? {
+    private var computedResult: LoanResult? {
         let errors = [
-            principalError, targetError, monthsError, primeError, marginError, feeError, inflationError,
+            principalError, targetError, monthsError, primeError, marginError, inflationError,
         ]
         guard errors.allSatisfy({ $0 == nil }),
               let principal = principalValue,
               let months = Int(monthsText),
               let prime = Fmt.parse(primeText),
-              let margin = Fmt.parse(marginText),
-              let fee = Fmt.parse(feeText)
+              let margin = Fmt.parse(marginText)
         else { return nil }
 
         return LoanCalculator.calculate(
@@ -216,7 +224,6 @@ final class LoanStore {
             margin: margin,
             months: months,
             repaymentType: track,
-            fee: fee,
             annualInflationPercent: cpiLinked ? (Fmt.parse(inflationText) ?? 0) : 0
         )
     }

@@ -1,4 +1,5 @@
 import Foundation
+import UIKit
 import Testing
 @testable import LoanCalculator
 
@@ -112,6 +113,45 @@ struct BorrowTests {
 }
 
 @MainActor
+struct ImageTests {
+    /// The shared image renders, at three times its 390-point width
+    @Test(arguments: [CalcMode.payment, .borrow])
+    func imageRenders(mode: CalcMode) throws {
+        let loan = LoanCalculator.calculate(
+            principal: 50000, prime: 4.75, margin: 6.75, months: 60,
+            repaymentType: .grace, annualInflationPercent: 3)
+        let data = try LoanImage(result: loan, mode: mode).pngData()
+        let image = try #require(UIImage(data: data))
+        // Pass TEST_RUNNER_SHOTS=<folder> to keep a copy to look at
+        if let dir = ProcessInfo.processInfo.environment["SHOTS"] {
+            try data.write(to: URL(fileURLWithPath: dir).appendingPathComponent("share-\(mode).png"))
+        }
+        #expect(image.size.width * image.scale == 1170)
+        #expect(image.size.height > image.size.width)
+    }
+}
+
+struct RollingTests {
+    /// Digits roll up when the number grows and down when it shrinks, and
+    /// keep their last direction when it holds still or is not a number
+    @Test func direction() {
+        let roll = RollDirection()
+        #expect(roll.update(1_099.63))
+        #expect(roll.update(1_250))
+        #expect(!roll.update(980.5))
+        #expect(!roll.update(980.5))
+        #expect(!roll.update(nil))
+        #expect(roll.update(1_000))
+    }
+
+    @Test func readsTheNumber() {
+        #expect(RollingDigits.number("1,099.63") == 1_099.63)
+        #expect(RollingDigits.number(".45") == 0.45)
+        #expect(RollingDigits.number("---") == nil)
+    }
+}
+
+@MainActor
 struct StoreTests {
     private func freshDefaults() -> UserDefaults {
         let name = "test-\(UUID().uuidString)"
@@ -123,6 +163,10 @@ struct StoreTests {
     @Test func defaultsGiveAResult() {
         let store = LoanStore(defaults: freshDefaults())
         #expect(store.marginText == "6.75")
+        // Linked to the CPI at 3% a year to start with
+        #expect(store.cpiLinked)
+        #expect(close(store.result?.monthlyPayment, 1102.34, 0.01))
+        store.cpiLinked = false
         #expect(close(store.result?.monthlyPayment, 1099.63, 0.01))
     }
 
@@ -137,10 +181,6 @@ struct StoreTests {
         #expect(store.monthsError != nil)
 
         store.monthsText = "60"
-        store.feeText = "60,000"
-        #expect(store.feeError != nil)
-
-        store.feeText = "490"
         store.marginText = "48"
         #expect(store.marginError != nil)
 
@@ -148,23 +188,23 @@ struct StoreTests {
         #expect(store.result != nil)
     }
 
-    @Test func remembersInputsAndSavedScenario() {
+    @Test func remembersInputs() {
         let defaults = freshDefaults()
         let first = LoanStore(defaults: defaults)
         first.principalText = "120,000"
         first.track = .balloon
-        first.cpiLinked = true
-        first.saved = SavedScenario(first.result!)
+        // Off is remembered too, though the switch starts on
+        first.cpiLinked = false
 
         let second = LoanStore(defaults: defaults)
         #expect(second.principalText == "120,000")
         #expect(second.track == .balloon)
-        #expect(second.cpiLinked)
-        #expect(second.saved == first.saved)
+        #expect(!second.cpiLinked)
     }
 
     @Test func borrowMode() {
         let store = LoanStore(defaults: freshDefaults())
+        store.cpiLinked = false
         store.mode = .borrow
         store.targetText = "1,100"
         // 1,099.63 a month is the default 50,000 loan
@@ -183,6 +223,51 @@ struct StoreTests {
         store.monthsText = "5"
         #expect(store.targetError == nil)
         #expect(store.monthsError != nil)
+    }
+
+    @Test func publishedInflationFillsTheField() async {
+        let defaults = freshDefaults()
+        let store = LoanStore(defaults: defaults)
+        let september = CPIReading(yearly: 1.6, year: 2026, month: 9)
+        await store.refreshCPI { september }
+        #expect(store.inflationText == "1.6")
+        #expect(store.inflationIsFromCBS)
+
+        // A newer month replaces it, but not within 12 hours of the last fetch
+        let october = CPIReading(yearly: 2.1, year: 2026, month: 10)
+        await store.refreshCPI(now: .now + 60) { october }
+        #expect(store.inflationText == "1.6")
+        await store.refreshCPI(now: .now + 13 * 60 * 60) { october }
+        #expect(store.inflationText == "2.1")
+
+        // A rate the user typed stays
+        store.inflationText = "4"
+        store.apply(CPIReading(yearly: -0.3, year: 2026, month: 11))
+        #expect(store.inflationText == "4")
+        #expect(!store.inflationIsFromCBS)
+
+        // Reset goes back to the published rate, and it outlives a relaunch
+        store.reset()
+        #expect(store.inflationText == "-0.3")
+        #expect(LoanStore(defaults: defaults).cpi?.month == 11)
+    }
+
+    @Test func noConnectionKeepsTheField() async {
+        let store = LoanStore(defaults: freshDefaults())
+        await store.refreshCPI { throw URLError(.notConnectedToInternet) }
+        #expect(store.inflationText == LoanStore.Defaults.inflation)
+        #expect(store.cpi == nil)
+    }
+
+    @Test func parsesTheCBSAnswer() throws {
+        let json = """
+        {"month":[{"code":120010,"name":"מדד המחירים לצרכן - כללי","date":[
+          {"year":2026,"percent":0.7,"percentYear":1.5,"month":8},
+          {"year":2026,"percent":-0.5,"percentYear":1.6,"month":9}]}],"quarter":null}
+        """
+        let reading = try CBS.parse(Data(json.utf8))
+        #expect(reading == CPIReading(yearly: 1.6, year: 2026, month: 9))
+        #expect(reading.period == "9/2026")
     }
 
     @Test func sanitizers() {

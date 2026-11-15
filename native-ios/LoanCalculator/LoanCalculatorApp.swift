@@ -19,6 +19,11 @@ struct LoanCalculatorApp: App {
                 // Hebrew only: always right to left, whatever the phone's language
                 .environment(\.layoutDirection, .rightToLeft)
                 .environment(\.locale, Fmt.hebrew)
+                // UI tests stay offline, so their numbers never move
+                .task {
+                    guard !ProcessInfo.processInfo.arguments.contains("-uiTesting") else { return }
+                    await store.refreshCPI()
+                }
         }
     }
 }

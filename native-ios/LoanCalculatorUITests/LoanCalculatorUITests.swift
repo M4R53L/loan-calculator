@@ -29,12 +29,11 @@ final class LoanCalculatorUITests: XCTestCase {
     }
 
     private var hero: XCUIElement { app.descendants(matching: .any)["hero"] }
-    private var bar: XCUIElement { app.descendants(matching: .any)["paymentBar"] }
 
     func testDefaultLoanShowsItsPayment() {
         XCTAssertTrue(hero.waitForExistence(timeout: 5))
-        XCTAssertTrue(hero.label.contains("1,099.63"), hero.label)
-        XCTAssertFalse(bar.exists)
+        // Linked to the CPI at 3% a year, the default when offline
+        XCTAssertTrue(hero.label.contains("1,102.34"), hero.label)
         shot("1-top")
     }
 
@@ -42,7 +41,7 @@ final class LoanCalculatorUITests: XCTestCase {
     func testTypingReplacesTheRate() {
         XCTAssertTrue(hero.waitForExistence(timeout: 5))
         let cases = [("field.prime", "5.5", "5.5"), ("field.margin", "12.25", "12.25"),
-                     ("field.fee", "1500", "1500")]
+                     ("field.inflation", "2.5", "2.5")]
         for (id, typed, expected) in cases {
             let field = app.textFields[id]
             scroll(to: field)
@@ -51,31 +50,51 @@ final class LoanCalculatorUITests: XCTestCase {
             field.typeText(typed)
             XCTAssertEqual(field.value as? String, expected)
             shot("rate-\(id)-typed")
+            // Close the keyboard, which can cover the next field
+            app.buttons["סיום"].tap()
         }
     }
 
-    func testPaymentBarAppearsOnceHeadlineScrollsAway() {
+    /// Everything is on screen at once, with no scrolling: for the default
+    /// loan, and for the tallest one, with grace months on top of linkage
+    func testEverythingFitsOnOneScreen() {
         XCTAssertTrue(hero.waitForExistence(timeout: 5))
-        // Linkage and a saved comparison make the page long enough to scroll
-        scroll(to: app.switches.firstMatch)
-        app.switches.firstMatch.tap()
-        scroll(to: app.buttons["שמירה להשוואה"])
-        app.buttons["שמירה להשוואה"].tap()
-        app.swipeUp()
-        app.swipeUp()
-        shot("2-scrolled")
-        // The bar stands in for the headline exactly when the headline is gone
-        if hero.exists && hero.isHittable {
-            XCTAssertFalse(bar.exists)
-        } else {
-            XCTAssertTrue(bar.waitForExistence(timeout: 3))
-            XCTAssertTrue(bar.label.contains("תשלום חודשי"), bar.label)
+        let window = app.windows.firstMatch.frame
+        let cost = app.descendants(matching: .any)["costSummary"]
+        func assertFits(_ name: String) {
+            XCTAssertTrue(cost.waitForExistence(timeout: 3))
+            // Clear of the home indicator's 34 points
+            XCTAssertLessThanOrEqual(cost.frame.maxY, window.maxY - 34, "\(name): cost card cut off")
+            print("FIT \(name): card ends at \(cost.frame.maxY) of \(window.maxY), headline \(hero.frame)")
+            XCTAssertGreaterThanOrEqual(hero.frame.minY, window.minY, "\(name): headline cut off")
+            // The rates and the last payment share one row
+            let figures = ["ריבית שנתית", "עלות אשראי שנתית", "תשלום אחרון"].map { label in
+                app.descendants(matching: .any)
+                    .matching(NSPredicate(format: "label BEGINSWITH %@", label)).firstMatch.frame
+            }
+            XCTAssertEqual(Set(figures.map(\.minY)).count, 1, "\(name): figures on more than one row")
+            // And so do the parts of the cost
+            let parts = ["קרן", "הצמדה"].map { label in
+                app.descendants(matching: .any)
+                    .matching(NSPredicate(format: "label BEGINSWITH %@", label)).firstMatch.frame
+            }
+            XCTAssertEqual(Set(parts.map(\.minY)).count, 1, "\(name): parts on more than one row")
+            shot("fit-\(name)")
         }
+        assertFits("default")
 
-        app.swipeDown()
-        app.swipeDown()
-        app.swipeDown()
-        XCTAssertTrue(bar.waitForNonExistence(timeout: 3))
+        app.buttons["גרייס"].tap()
+        assertFits("tallest")
+
+        // The longest last payment: the largest balloon at the highest rate
+        let amount = app.textFields["field.principal"], margin = app.textFields["field.margin"]
+        amount.tap()
+        amount.typeText("400000")
+        margin.tap()
+        margin.typeText("45.25")
+        app.buttons["סיום"].tap()
+        app.buttons["בלון"].tap()
+        assertFits("widest")
     }
 
     func testEveryTrackGivesAResult() {
@@ -97,20 +116,44 @@ final class LoanCalculatorUITests: XCTestCase {
         app.buttons["כמה אלווה"].tap()
         XCTAssertTrue(hero.waitForExistence(timeout: 3))
         XCTAssertTrue(hero.label.contains("תוכלו ללוות"), hero.label)
-        // 1,000 a month over 60 months at the default rates
-        XCTAssertTrue(hero.label.contains("45,469"), hero.label)
+        // 1,000 a month over 60 months at the default rates, linked at 3%
+        XCTAssertTrue(hero.label.contains("45,357"), hero.label)
         XCTAssertTrue(app.staticTexts["תשלום חודשי רצוי"].exists)
         shot("4-borrow")
     }
 
+    func testShareOffersAnImage() {
+        app.buttons["שיתוף כתמונה"].tap()
+        // The share sheet offers to set a contact's photo only for a picture
+        let assign = app.descendants(matching: .any).matching(
+            NSPredicate(format: "label IN %@", ["Assign to Contact", "שיוך לאיש קשר"])
+        ).firstMatch
+        XCTAssertTrue(assign.waitForExistence(timeout: 10))
+        shot("9-share")
+    }
+
+    /// Typing a new amount passes through values out of range, such as 9
+    /// on the way to 94,000. The headline shows --- and nothing moves.
     func testInvalidAmountExplainsItselfAndResetRecovers() {
         let field = app.textFields["field.principal"]
         XCTAssertTrue(field.waitForExistence(timeout: 5))
+        let cost = app.descendants(matching: .any)["costSummary"]
         field.tap()
+        let heroBefore = hero.frame, costBefore = cost.frame
         field.typeText("9")
         XCTAssertTrue(app.staticTexts["הסכום צריך להיות 15,000 עד 400,000 ₪"].waitForExistence(timeout: 3))
-        XCTAssertTrue(app.descendants(matching: .any)["noResult"].exists)
+        XCTAssertTrue(hero.label.contains("אין חישוב"), hero.label)
+        // Same place and height; only the width changes, as --- is narrower
+        XCTAssertEqual(hero.frame.minY, heroBefore.minY)
+        XCTAssertEqual(hero.frame.height, heroBefore.height)
+        XCTAssertEqual(cost.frame, costBefore)
         shot("7-invalid")
+
+        field.typeText("4000")
+        XCTAssertTrue(hero.label.contains("2,072.40"), hero.label)
+        XCTAssertEqual(hero.frame.minY, heroBefore.minY)
+        XCTAssertEqual(cost.frame, costBefore)
+        shot("7-valid-again")
 
         app.buttons["איפוס"].tap()
         let confirm = app.buttons["איפוס הנתונים"]
@@ -118,26 +161,6 @@ final class LoanCalculatorUITests: XCTestCase {
         shot("8-reset")
         confirm.tap()
         XCTAssertTrue(hero.waitForExistence(timeout: 3))
-        XCTAssertTrue(hero.label.contains("1,099.63"), hero.label)
-    }
-
-    func testSavedScenarioShowsTheDifference() {
-        let save = app.buttons["שמירה להשוואה"]
-        scroll(to: save)
-        save.tap()
-        // The same loan compared with itself differs by nothing. A row's label
-        // and value read as one element, so match on part of the label.
-        let unchanged = app.descendants(matching: .any)
-            .matching(NSPredicate(format: "label CONTAINS %@", "ללא שינוי"))
-        XCTAssertTrue(unchanged.firstMatch.waitForExistence(timeout: 3))
-        // The comparison lengthens the card and pushes the actions down
-        let menu = app.buttons["השוואה"]
-        scroll(to: menu)
-        shot("9-compare")
-        menu.tap()
-        let remove = app.buttons["הסרת התרחיש השמור"]
-        XCTAssertTrue(remove.waitForExistence(timeout: 3))
-        remove.tap()
-        XCTAssertTrue(save.waitForExistence(timeout: 3))
+        XCTAssertTrue(hero.label.contains("1,102.34"), hero.label)
     }
 }

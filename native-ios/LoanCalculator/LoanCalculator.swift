@@ -22,7 +22,7 @@ enum RepaymentType: String, CaseIterable, Codable, Identifiable, Sendable {
 }
 
 /// One month of the amortization schedule
-struct AmortizationRow: Identifiable, Sendable {
+struct AmortizationRow: Identifiable, Equatable, Sendable {
     let month: Int
     let payment: Double
     let interestPortion: Double
@@ -34,7 +34,7 @@ struct AmortizationRow: Identifiable, Sendable {
     var id: Int { month }
 }
 
-struct LoanResult: Sendable {
+struct LoanResult: Equatable, Sendable {
     let principal: Double
     let annualRate: Double
     let months: Int
@@ -192,10 +192,15 @@ enum LoanCalculator {
     static func effectiveAnnualRate(netReceived: Double, payments: [Double]) -> Double? {
         guard netReceived > 0, !payments.isEmpty else { return nil }
 
+        // Runs on every slider step, so the discount is built up by
+        // multiplying, not with pow for each month
         func presentValue(_ i: Double) -> Double {
+            let step = 1 / (1 + i)
+            var discount = step
             var pv = 0.0
-            for (t, payment) in payments.enumerated() {
-                pv += payment / pow(1 + i, Double(t + 1))
+            for payment in payments {
+                pv += payment * discount
+                discount *= step
             }
             return pv
         }
@@ -206,7 +211,8 @@ enum LoanCalculator {
         guard presentValue(low) >= netReceived, presentValue(high) <= netReceived else {
             return nil
         }
-        for _ in 0..<200 {
+        // Halving 1.5 down to 1e-13 takes about 44 steps; more add nothing
+        while high - low > 1e-13 {
             let mid = (low + high) / 2
             if presentValue(mid) > netReceived {
                 low = mid

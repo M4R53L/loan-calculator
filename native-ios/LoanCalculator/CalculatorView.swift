@@ -1,59 +1,72 @@
 import SwiftUI
 
+/// The calculator, on one screen.
+///
+/// Performance: dragging a slider changes the inputs many times a second.
+/// This body reads no input and no result, so it is not redrawn for each
+/// step. Each part of the screen reads what it shows inside its own `Live`,
+/// and only the parts whose data changed are redrawn: for the amount
+/// slider, the amount row, the headline and the cost card, but not the
+/// other text fields.
 struct CalculatorView: View {
     @Bindable var store: LoanStore
     @FocusState private var focus: Field?
-    /// Bumped on every slider step, to tick the haptic engine
-    @State private var ticks = 0
-    /// The pinned bar only shows once the headline figure scrolls away
-    @State private var heroVisible = true
+    /// Ticks the haptic engine on every slider step. An object, so a tick
+    /// redraws only the slider that reads it, not the screen.
+    @State private var haptics = SliderHaptics()
     @State private var confirmingReset = false
+    /// The screen's height with no keyboard showing
+    @State private var restingHeight: CGFloat = 0
 
     enum Field: Hashable {
-        case principal, target, months, prime, margin, fee, inflation
+        case principal, target, months, prime, margin, inflation
     }
 
     var body: some View {
-        let result = store.result
-
         NavigationStack {
-            // The whole calculator is meant to fit one screen: fields share
-            // rows, and each slider sits in the row of the field it drives.
-            Form {
-                Section {
-                    Group {
-                        if let result {
-                            LoanHero(result: result, mode: store.mode)
-                        } else {
-                            NoResult()
+            // The calculator fits one screen. The cards keep their natural
+            // height and stay at the bottom, in reach of a thumb. Whatever
+            // height is left goes to the headline, which grows to fill it:
+            // larger on a Pro Max, smaller on an iPhone 16. It scrolls only
+            // when it has to: under the keyboard, or with error messages.
+            GeometryReader { screen in
+                // Laid out for the screen without the keyboard, so the
+                // headline holds its size while a field is edited
+                let height = focus == nil
+                    ? screen.size.height : max(restingHeight, screen.size.height)
+                ScrollView {
+                    VStack(spacing: 0) {
+                        GeometryReader { slot in
+                            Live { hero(fitting: slot.size) }
+                                .frame(maxWidth: .infinity, maxHeight: .infinity)
                         }
-                    }
-                    // Hidden once the figure has slid under the navigation bar
-                    .onGeometryChange(for: Bool.self) { proxy in
-                        proxy.frame(in: .global).maxY > 110
-                    } action: { visible in
-                        heroVisible = visible
-                    }
-                    .onAppear { heroVisible = true }
-                    .onDisappear { heroVisible = false }
-                }
-                .listRowBackground(Color.clear)
-                .listRowInsets(EdgeInsets(top: 0, leading: 4, bottom: 0, trailing: 4))
+                        .frame(minHeight: 110)
+                        .padding(.horizontal, 8)
+                        .padding(.bottom, 8)
 
-                loanSection
-                termsSection
-
-                if let result {
-                    ResultSections(result: result, store: store)
+                        card {
+                            Live { amountRow }
+                            Divider()
+                            Live { monthsRow }
+                        }
+                        gap
+                        card { Live { termsCard } }
+                        Live { costCard }
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.top, 4)
+                    .padding(.bottom, 8)
+                    .frame(minHeight: height, alignment: .top)
                 }
+                .onChange(of: screen.size.height, initial: true) { _, new in
+                    if focus == nil { restingHeight = new }
+                }
+                .scrollBounceBehavior(.basedOnSize)
+                // Not .interactively: dragging the keyboard down by hand leaves a
+                // stale keyboard inset behind.
+                .scrollDismissesKeyboard(.immediately)
             }
-            .listSectionSpacing(12)
-            .contentMargins(.top, 4, for: .scrollContent)
-            .scrollContentBackground(.hidden)
             .background(Color.canvas)
-            // Not .interactively: dragging the keyboard down by hand leaves a stale
-            // keyboard inset behind, which shows as a gap under the payment bar.
-            .scrollDismissesKeyboard(.immediately)
             .navigationTitle("מחשבון הלוואה")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -66,6 +79,9 @@ struct CalculatorView: View {
                     }
                     .pickerStyle(.segmented)
                     .frame(maxWidth: 230)
+                }
+                ToolbarItem(placement: .topBarLeading) {
+                    Live { shareButton(store.result) }
                 }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("איפוס") {
@@ -89,13 +105,6 @@ struct CalculatorView: View {
                         .fontWeight(.semibold)
                 }
             }
-            .safeAreaInset(edge: .bottom, spacing: 0) {
-                if let result, !heroVisible {
-                    PaymentBar(result: result, mode: store.mode)
-                        .transition(.move(edge: .bottom).combined(with: .opacity))
-                }
-            }
-            .animation(.snappy(duration: 0.25), value: heroVisible)
             // Tapping a field selects its number, so typing replaces it.
             // Deferred a turn: UIKit places the cursor after this fires, and
             // the whole-shekel fields drop their separators on focus.
@@ -105,137 +114,218 @@ struct CalculatorView: View {
                 guard let field = note.object as? UITextField else { return }
                 Task { @MainActor in field.selectAll(nil) }
             }
-            .sensoryFeedback(.selection, trigger: ticks)
             .sensoryFeedback(.selection, trigger: store.track)
             .sensoryFeedback(.selection, trigger: store.mode)
             .sensoryFeedback(.selection, trigger: store.cpiLinked)
-            .sensoryFeedback(.impact(weight: .light), trigger: store.saved)
         }
     }
 
-    // MARK: Sections
+    // MARK: Layout
 
-    /// Amount (or target payment) and term, each with its slider
-    private var loanSection: some View {
-        Section {
-            switch store.mode {
-            case .payment:
-                VStack(spacing: 0) {
-                    InputRow(
-                        label: "סכום ההלוואה", unit: "₪",
-                        text: wholeBinding(\.principalText, .principal),
-                        error: store.principalError,
-                        field: .principal, focus: $focus
-                    )
-                    stepSlider(
-                        "סכום ההלוואה", text: \.principalText,
-                        range: LoanCalculator.minPrincipal...LoanCalculator.maxPrincipal,
-                        step: 5000, low: "15 אלף", high: "400 אלף"
-                    )
-                }
-            case .borrow:
-                VStack(spacing: 0) {
-                    InputRow(
-                        label: "תשלום חודשי רצוי", unit: "₪",
-                        text: wholeBinding(\.targetText, .target),
-                        error: store.targetError,
-                        field: .target, focus: $focus
-                    )
-                    stepSlider(
-                        "תשלום חודשי רצוי", text: \.targetText,
-                        range: LoanStore.minTarget...LoanStore.maxTarget,
-                        step: 50, low: "200", high: "10 אלף"
-                    )
-                }
+    /// Space between the cards: a little more on taller phones
+    private var gap: some View {
+        Spacer(minLength: 8)
+            .frame(maxHeight: 16)
+    }
+
+    private func card(@ViewBuilder _ content: () -> some View) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            content()
+        }
+        .padding(.horizontal, 18)
+        .padding(.vertical, 10)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.card, in: RoundedRectangle(cornerRadius: 26, style: .continuous))
+    }
+
+    @ViewBuilder
+    private func shareButton(_ result: LoanResult?) -> some View {
+        let label = Label("שיתוף כתמונה", systemImage: "square.and.arrow.up")
+        if let result {
+            ShareLink(
+                item: LoanImage(result: result, mode: store.mode),
+                preview: SharePreview("סיכום הלוואה")
+            ) {
+                label
             }
+        } else {
+            Button {} label: { label }
+                .disabled(true)
+        }
+    }
 
+    // MARK: Results
+
+    /// The headline. While an input is out of range the last answer keeps
+    /// the layout, showing --- in place of the number, so nothing moves.
+    @ViewBuilder
+    private func hero(fitting space: CGSize) -> some View {
+        if let shown = store.result ?? store.lastResult {
+            LoanHero(result: shown, mode: store.mode,
+                     figureSize: LoanHero.figureSize(fitting: space, result: shown, mode: store.mode),
+                     placeholder: store.result == nil)
+        } else {
+            NoResult()
+        }
+    }
+
+    /// What the loan costs, with the gap above it
+    @ViewBuilder
+    private var costCard: some View {
+        if let shown = store.result ?? store.lastResult {
+            gap
+            card { CostSummary(result: shown, placeholder: store.result == nil) }
+                .accessibilityElement(children: .contain)
+                .accessibilityIdentifier("costSummary")
+        }
+    }
+
+    // MARK: Cards
+
+    /// Amount (or target payment), with its slider
+    @ViewBuilder
+    private var amountRow: some View {
+        switch store.mode {
+        case .payment:
             VStack(spacing: 0) {
                 InputRow(
-                    label: "תקופה", unit: "חודשים",
-                    text: Binding(
-                        get: { store.monthsText },
-                        set: { store.monthsText = String($0.filter(\.isNumber).prefix(3)) }
-                    ),
-                    error: store.monthsError,
-                    field: .months, focus: $focus
+                    label: "סכום ההלוואה", unit: "₪",
+                    text: wholeBinding(\.principalText, .principal),
+                    field: .principal, focus: $focus
                 )
-                Slider(
-                    value: Binding(
-                        get: {
-                            Double(min(max(Int(store.monthsText) ?? LoanCalculator.minMonths,
-                                           LoanCalculator.minMonths), LoanCalculator.maxMonths))
-                        },
-                        set: { setMonths(Int($0.rounded())) }
-                    ),
-                    in: Double(LoanCalculator.minMonths)...Double(LoanCalculator.maxMonths)
-                ) {
-                    Text("תקופה")
-                } minimumValueLabel: {
-                    sliderLabel("12")
-                } maximumValueLabel: {
-                    sliderLabel("100")
-                }
+                stepSlider(
+                    "סכום ההלוואה", text: \.principalText,
+                    range: LoanCalculator.minPrincipal...LoanCalculator.maxPrincipal,
+                    step: 5000, low: "15 אלף", high: "400 אלף"
+                )
+                .replaced(byHint: store.principalError)
+            }
+        case .borrow:
+            VStack(spacing: 0) {
+                InputRow(
+                    label: "תשלום חודשי רצוי", unit: "₪",
+                    text: wholeBinding(\.targetText, .target),
+                    field: .target, focus: $focus
+                )
+                stepSlider(
+                    "תשלום חודשי רצוי", text: \.targetText,
+                    range: LoanStore.minTarget...LoanStore.maxTarget,
+                    step: 50, low: "200", high: "10 אלף"
+                )
+                .replaced(byHint: store.targetError)
             }
         }
-        .listRowBackground(Color.card)
     }
 
-    /// Rates, fee and linkage in two columns, then the repayment track
-    private var termsSection: some View {
-        Section {
-            LazyVGrid(
-                columns: [GridItem(.flexible(), spacing: 16, alignment: .topLeading),
-                          GridItem(.flexible(), alignment: .topLeading)],
-                alignment: .leading, spacing: 14
+    /// The term, with its slider
+    private var monthsRow: some View {
+        VStack(spacing: 0) {
+            InputRow(
+                label: "תקופה", unit: "חודשים",
+                text: Binding(
+                    get: { store.monthsText },
+                    set: { store.monthsText = String($0.filter(\.isNumber).prefix(3)) }
+                ),
+                field: .months, focus: $focus
+            )
+            Slider(
+                value: Binding(
+                    get: {
+                        Double(min(max(Int(store.monthsText) ?? LoanCalculator.minMonths,
+                                       LoanCalculator.minMonths), LoanCalculator.maxMonths))
+                    },
+                    set: { setMonths(Int($0.rounded())) }
+                ),
+                in: Double(LoanCalculator.minMonths)...Double(LoanCalculator.maxMonths)
             ) {
+                Text("תקופה")
+            } minimumValueLabel: {
+                sliderLabel("12")
+            } maximumValueLabel: {
+                sliderLabel("100")
+            }
+            .replaced(byHint: store.monthsError)
+            .sensoryFeedback(.selection, trigger: haptics.monthTicks)
+        }
+    }
+
+    /// Where the inflation rate came from: the Central Bureau of
+    /// Statistics' last 12 months, or the user's own estimate
+    private var inflationSource: String? {
+        guard store.cpiLinked else { return nil }
+        if store.inflationIsFromCBS, let cpi = store.cpi { return "הלמ״ס \(cpi.period)" }
+        return "שנתי משוער"
+    }
+
+    /// The switch, and beside it the yearly rate, on one line
+    private var linkageRow: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            HStack(spacing: 8) {
+                Text("צמוד למדד")
+                    .font(.subheadline)
+                // An error takes the source's place, so the row keeps its height
+                if let error = store.inflationError {
+                    Text(error)
+                        .font(.caption)
+                        .foregroundStyle(.red)
+                        .minimumScaleFactor(0.7)
+                } else if let inflationSource {
+                    Text(inflationSource)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer(minLength: 4)
+                Toggle("צמוד למדד", isOn: $store.cpiLinked.animation(.snappy))
+                    .labelsHidden()
+                    .fixedSize() // a bare switch still takes any width it is offered
+                // After the switch, so the field's unused width falls at the
+                // card's edge and the rate sits beside the switch
+                if store.cpiLinked {
+                    NumberField(label: "מדד שנתי משוער", unit: "%",
+                                text: decimalBinding(\.inflationText, allowNegative: true),
+                                field: .inflation, focus: $focus,
+                                keyboard: .numbersAndPunctuation, width: 40)
+                        .transition(.opacity)
+                }
+            }
+            .lineLimit(1)
+        }
+    }
+
+    /// The two rates side by side, linkage, then the repayment track
+    @ViewBuilder
+    private var termsCard: some View {
+        Grid(alignment: .topLeading, horizontalSpacing: 16, verticalSpacing: 10) {
+            GridRow {
                 InputCell(
                     // The app works offline, so the prime rate is typed in.
                     // Date the default, so a stale one is noticed.
                     label: store.primeText == LoanStore.Defaults.prime
                         ? "פריים, נכון ל־\(LoanStore.Defaults.primeAsOf)" : "ריבית פריים",
-                    unit: "%",
-                    text: decimalBinding(\.primeText),
-                    error: store.primeError,
-                    field: .prime, focus: $focus, keyboard: .decimalPad
-                )
-                InputCell(
-                    label: "מרווח מעל הפריים", unit: "%",
-                    text: decimalBinding(\.marginText),
-                    error: store.marginError,
-                    field: .margin, focus: $focus, keyboard: .decimalPad
-                )
-                InputCell(
-                    label: "עמלת פתיחת תיק", unit: "₪",
-                    text: wholeBinding(\.feeText, .fee),
-                    error: store.feeError,
-                    field: .fee, focus: $focus
-                )
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("צמוד למדד")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    Toggle("צמוד למדד", isOn: $store.cpiLinked.animation(.snappy))
-                        .labelsHidden()
+                    error: store.primeError
+                ) {
+                    NumberField(label: "ריבית פריים", unit: "%",
+                                text: decimalBinding(\.primeText),
+                                field: .prime, focus: $focus, keyboard: .decimalPad)
                 }
-                if store.cpiLinked {
-                    InputCell(
-                        label: "מדד שנתי משוער", unit: "%",
-                        text: decimalBinding(\.inflationText, allowNegative: true),
-                        error: store.inflationError,
-                        field: .inflation, focus: $focus, keyboard: .numbersAndPunctuation
-                    )
+                InputCell(label: "מרווח מעל הפריים", error: store.marginError) {
+                    NumberField(label: "מרווח מעל הפריים", unit: "%",
+                                text: decimalBinding(\.marginText),
+                                field: .margin, focus: $focus, keyboard: .decimalPad)
                 }
             }
-            .padding(.vertical, 2)
-
-            Picker("מסלול החזר", selection: $store.track) {
-                ForEach(RepaymentType.allCases) { type in
-                    Text(type.label).tag(type)
-                }
-            }
-            .pickerStyle(.segmented)
         }
-        .listRowBackground(Color.card)
+
+        linkageRow
+
+        Divider()
+
+        Picker("מסלול החזר", selection: $store.track) {
+            ForEach(RepaymentType.allCases) { type in
+                Text(type.label).tag(type)
+            }
+        }
+        .pickerStyle(.segmented)
     }
 
     // MARK: Helpers
@@ -264,7 +354,7 @@ struct CalculatorView: View {
                     let text = Fmt.grouped((new / step).rounded() * step)
                     if text != store[keyPath: keyPath] {
                         store[keyPath: keyPath] = text
-                        ticks += 1
+                        haptics.amountTicks += 1
                     }
                 }
             ),
@@ -276,13 +366,14 @@ struct CalculatorView: View {
         } maximumValueLabel: {
             sliderLabel(high)
         }
+        .sensoryFeedback(.selection, trigger: haptics.amountTicks)
     }
 
     private func setMonths(_ months: Int) {
         let text = String(months)
         if text != store.monthsText {
             store.monthsText = text
-            ticks += 1
+            haptics.monthTicks += 1
         }
     }
 
@@ -312,6 +403,20 @@ struct CalculatorView: View {
     }
 }
 
+/// Evaluates its content in its own body. The store values the content
+/// reads then redraw this part alone, not the view that holds it.
+private struct Live<Content: View>: View {
+    @ViewBuilder let content: () -> Content
+    var body: some View { content() }
+}
+
+/// Counts slider steps, one counter per slider, to tick the haptic engine
+@Observable
+private final class SliderHaptics {
+    var amountTicks = 0
+    var monthTicks = 0
+}
+
 /// A full-width field: label on the leading side, the editable number and
 /// its unit on the trailing side, and any error underneath. Tapping anywhere
 /// on it starts editing.
@@ -319,7 +424,6 @@ private struct InputRow: View {
     let label: String
     let unit: String
     @Binding var text: String
-    let error: String?
     let field: CalculatorView.Field
     var focus: FocusState<CalculatorView.Field?>.Binding
     var keyboard: UIKeyboardType = .numberPad
@@ -339,111 +443,79 @@ private struct InputRow: View {
                 Text(unit)
                     .foregroundStyle(.secondary)
             }
-            if let error {
-                Text(error)
-                    .font(.footnote)
-                    .foregroundStyle(.red)
-            }
         }
         .contentShape(Rectangle())
         .onTapGesture { focus.wrappedValue = field }
     }
 }
 
-/// A half-width field for the two-column grid: small label on top, the
-/// number and its unit under it.
-private struct InputCell: View {
+/// A half-width cell for the two-column grid: small label on top and the
+/// control under it. An error takes the label's place, so the cell keeps
+/// its height.
+private struct InputCell<Content: View>: View {
+    let label: String
+    let error: String?
+    @ViewBuilder let content: Content
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(error ?? label)
+                .font(.caption)
+                .foregroundStyle(error == nil ? .secondary : Color.red)
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+            content
+                .frame(minHeight: 31) // fields line up with the switch
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+/// A number and its unit. Tapping anywhere on it starts editing.
+private struct NumberField: View {
     let label: String
     let unit: String
     @Binding var text: String
-    let error: String?
     let field: CalculatorView.Field
     var focus: FocusState<CalculatorView.Field?>.Binding
     var keyboard: UIKeyboardType = .numberPad
     /// Fits about seven digits, such as "12.25" or "10,000"
-    @ScaledMetric(relativeTo: .body) private var fieldWidth: CGFloat = 76
+    @ScaledMetric private var width: CGFloat
+
+    init(label: String, unit: String, text: Binding<String>, field: CalculatorView.Field,
+         focus: FocusState<CalculatorView.Field?>.Binding,
+         keyboard: UIKeyboardType = .numberPad, width: CGFloat = 76) {
+        self.label = label
+        self.unit = unit
+        _text = text
+        self.field = field
+        self.focus = focus
+        self.keyboard = keyboard
+        _width = ScaledMetric(wrappedValue: width, relativeTo: .body)
+    }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text(label)
-                .font(.caption)
+        HStack(spacing: 4) {
+            // A fixed width, not one sized to the text: a field that grows
+            // a frame behind each typed digit scrolls the number out of
+            // view and stays scrolled.
+            TextField(label, text: $text, prompt: Text("0"))
+                .keyboardType(keyboard)
+                .multilineTextAlignment(.trailing)
+                .monospacedDigit()
+                .fontWeight(.medium)
+                .focused(focus, equals: field)
+                .labelsHidden()
+                .frame(width: width)
+                .accessibilityIdentifier("field.\(field)")
+            Text(unit)
                 .foregroundStyle(.secondary)
-                .lineLimit(1)
-                .minimumScaleFactor(0.8)
-            HStack(spacing: 4) {
-                // A fixed width, not one sized to the text: a field that grows
-                // a frame behind each typed digit scrolls the number out of
-                // view and stays scrolled.
-                TextField(label, text: $text, prompt: Text("0"))
-                    .keyboardType(keyboard)
-                    .multilineTextAlignment(.trailing)
-                    .monospacedDigit()
-                    .fontWeight(.medium)
-                    .focused(focus, equals: field)
-                    .labelsHidden()
-                    .frame(width: fieldWidth)
-                    .accessibilityIdentifier("field.\(field)")
-                Text(unit)
-                    .foregroundStyle(.secondary)
-            }
-            // Numbers read left to right. In the app's right-to-left layout
-            // the cursor sat on the left of the digits, so typing landed there.
-            .environment(\.layoutDirection, .leftToRight)
-            .frame(minHeight: 31) // lines up with the toggle in the next cell
-            if let error {
-                Text(error)
-                    .font(.caption)
-                    .foregroundStyle(.red)
-            }
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
+        // Numbers read left to right. In the app's right-to-left layout
+        // the cursor sat on the left of the digits, so typing landed there.
+        .environment(\.layoutDirection, .leftToRight)
         .contentShape(Rectangle())
         .onTapGesture { focus.wrappedValue = field }
-    }
-}
-
-/// Keeps the answer in view once the headline has scrolled away.
-private struct PaymentBar: View {
-    let result: LoanResult
-    let mode: CalcMode
-
-    var body: some View {
-        HStack(alignment: .firstTextBaseline) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(mode == .borrow ? "תוכלו ללוות" : "תשלום חודשי")
-                    .font(.subheadline)
-                Text("עלות אשראי \(Fmt.percent(result.effectiveAnnualCost ?? result.annualRate))")
-                    .font(.caption)
-                    .monospacedDigit()
-            }
-            .foregroundStyle(.secondary)
-            Spacer()
-            MoneyText(
-                value: mode == .borrow ? result.principal : result.monthlyPayment,
-                cents: mode == .payment
-            )
-            .font(.title2.weight(.semibold))
-        }
-        .padding(.horizontal, 20)
-        .padding(.vertical, 12)
-        .background(.bar)
-        .overlay(alignment: .top) { Divider() }
-        .accessibilityElement(children: .combine)
-        .accessibilityIdentifier("paymentBar")
-    }
-}
-
-/// A shekel amount whose digits roll to the new value.
-struct MoneyText: View {
-    let value: Double
-    var signed = false
-    var cents = true
-
-    var body: some View {
-        Text(signed ? Fmt.signedMoney(value) : Fmt.money(value, cents: cents))
-            .monospacedDigit()
-            .contentTransition(.numericText(value: value))
-            .animation(.snappy(duration: 0.3), value: value)
     }
 }
 
@@ -451,4 +523,23 @@ struct MoneyText: View {
     CalculatorView(store: LoanStore())
         .environment(\.layoutDirection, .rightToLeft)
         .environment(\.locale, Fmt.hebrew)
+}
+
+private extension View {
+    /// While a row's value is out of range, its hint takes the slider's
+    /// place, in the same height, so nothing below it moves
+    func replaced(byHint hint: String?) -> some View {
+        opacity(hint == nil ? 1 : 0)
+            .allowsHitTesting(hint == nil)
+            .accessibilityHidden(hint != nil)
+            .overlay(alignment: .leading) {
+                if let hint {
+                    Text(hint)
+                        .font(.footnote)
+                        .foregroundStyle(.red)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.7)
+                }
+            }
+    }
 }

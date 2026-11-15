@@ -4,7 +4,9 @@ A Hebrew loan calculator for Israeli consumer and car loans, priced as Prime plu
 
 It is a native SwiftUI app for iPhone and iPad, iOS 17 or later, in `native-ios/`.
 
-It works fully offline. Nothing is fetched or sent, so the Prime rate is a number you type in. The default is 4.75%, as of November 2026.
+It works offline. The Prime rate is a number you type in; the default is 4.75%, as of November 2026.
+
+The one thing it fetches is the consumer price index, from the Central Bureau of Statistics' public API (`api.cbs.gov.il`, no key needed), at most twice a day. The CPI-linkage field then starts at the change over the last 12 months, labelled with the month it is for, such as "הלמ״ס 9/2026". Nothing is sent. Without a connection the field keeps its last value, 3% before the first fetch, and a rate you type yourself is never replaced.
 
 ## What it calculates
 
@@ -13,10 +15,10 @@ It works fully offline. Nothing is fetched or sent, so the Prime rate is a numbe
   - Spitzer (שפיצר): the same payment every month
   - Balloon (בלון): interest only each month, the whole principal in the last payment
   - Grace (גרייס): no payments for the first 3 months, then the loan and the accrued interest over the rest of the term
-- **File-opening fee** and the **effective annual cost of credit**, which includes it
-- **CPI linkage**, from an inflation rate you estimate
-- **Save and compare**: pin one loan, change the inputs, and see the difference
+- **Effective annual cost of credit**
+- **CPI linkage**, on by default, from the published 12-month CPI change or an inflation rate you estimate
 - **How much can I borrow**: enter the monthly payment you can afford and get the loan amount
+- **Share as an image**: a PNG of the result, drawn in the app's own design, through the share sheet
 
 ## Running the app
 
@@ -71,7 +73,7 @@ The effective annual cost is the rate at which the money you actually receive (t
 - 76,500 ₪ at 9.1% for 60 months: 1,591.73 ₪ a month
 - 20,000 ₪ at 7% for 48 months: 478.92 ₪ a month
 - 50,000 ₪ at 6.7% for 60 months: 983.00 ₪ a month
-- Mimun Yashir's published example: 30,000 ₪ at 8.5% over 55 payments with a 490 ₪ fee gives 660.51 ₪ a month, 36,817 ₪ in total, and an effective cost of 9.66%
+- Mimun Yashir's published example: 30,000 ₪ at 8.5% over 55 payments with a 490 ₪ fee gives 660.51 ₪ a month, 36,817 ₪ in total, and an effective cost of 9.66%. The app no longer asks for a fee, but the calculation still takes one, to keep this check.
 
 ## Layout
 

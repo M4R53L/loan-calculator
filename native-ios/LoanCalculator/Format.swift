@@ -13,16 +13,6 @@ enum Fmt {
         )
     }
 
-    /// Shekel difference with an explicit plus or minus
-    static func signedMoney(_ value: Double) -> String {
-        value.formatted(
-            .currency(code: "ILS")
-                .precision(.fractionLength(2))
-                .sign(strategy: .always())
-                .locale(hebrew)
-        )
-    }
-
     static func percent(_ value: Double) -> String {
         String(format: "%.2f%%", value)
     }
