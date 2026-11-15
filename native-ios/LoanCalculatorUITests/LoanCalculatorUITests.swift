@@ -32,8 +32,8 @@ final class LoanCalculatorUITests: XCTestCase {
 
     func testDefaultLoanShowsItsPayment() {
         XCTAssertTrue(hero.waitForExistence(timeout: 5))
-        // Linked to the CPI at 3% a year, the default when offline
-        XCTAssertTrue(hero.label.contains("1,102.34"), hero.label)
+        // Linked to the CPI at 1.6% a year, the default when offline
+        XCTAssertTrue(hero.label.contains("1,101.09"), hero.label)
         shot("1-top")
     }
 
@@ -116,8 +116,8 @@ final class LoanCalculatorUITests: XCTestCase {
         app.buttons["כמה אלווה"].tap()
         XCTAssertTrue(hero.waitForExistence(timeout: 3))
         XCTAssertTrue(hero.label.contains("תוכלו ללוות"), hero.label)
-        // 1,000 a month over 60 months at the default rates, linked at 3%
-        XCTAssertTrue(hero.label.contains("45,357"), hero.label)
+        // 1,000 a month over 60 months at the default rates, linked at 1.6%
+        XCTAssertTrue(hero.label.contains("45,409"), hero.label)
         XCTAssertTrue(app.staticTexts["תשלום חודשי רצוי"].exists)
         shot("4-borrow")
     }
@@ -161,6 +161,6 @@ final class LoanCalculatorUITests: XCTestCase {
         shot("8-reset")
         confirm.tap()
         XCTAssertTrue(hero.waitForExistence(timeout: 3))
-        XCTAssertTrue(hero.label.contains("1,102.34"), hero.label)
+        XCTAssertTrue(hero.label.contains("1,101.09"), hero.label)
     }
 }

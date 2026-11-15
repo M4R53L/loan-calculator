@@ -163,9 +163,9 @@ struct StoreTests {
     @Test func defaultsGiveAResult() {
         let store = LoanStore(defaults: freshDefaults())
         #expect(store.marginText == "6.75")
-        // Linked to the CPI at 3% a year to start with
+        // Linked to the CPI at 1.6% a year to start with
         #expect(store.cpiLinked)
-        #expect(close(store.result?.monthlyPayment, 1102.34, 0.01))
+        #expect(close(store.result?.monthlyPayment, 1101.09, 0.01))
         store.cpiLinked = false
         #expect(close(store.result?.monthlyPayment, 1099.63, 0.01))
     }
