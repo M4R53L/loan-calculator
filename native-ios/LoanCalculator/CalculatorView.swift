@@ -15,6 +15,7 @@ struct CalculatorView: View {
     /// redraws only the slider that reads it, not the screen.
     @State private var haptics = SliderHaptics()
     @State private var confirmingReset = false
+    @State private var showingDisclaimer = false
     /// The screen's height with no keyboard showing
     @State private var restingHeight: CGFloat = 0
 
@@ -178,6 +179,30 @@ struct CalculatorView: View {
                 .accessibilityElement(children: .contain)
                 .accessibilityIdentifier("costSummary")
         }
+        disclaimerButton
+    }
+
+    /// Always on screen under the results. Tapping it opens the full text.
+    private var disclaimerButton: some View {
+        Button {
+            focus = nil
+            showingDisclaimer = true
+        } label: {
+            HStack(alignment: .firstTextBaseline, spacing: 4) {
+                Text(Disclaimer.short)
+                Image(systemName: "info.circle")
+            }
+            .font(.caption2)
+            .foregroundStyle(.secondary)
+            .multilineTextAlignment(.leading)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 4)
+            .padding(.top, 8)
+        }
+        .buttonStyle(.plain)
+        .accessibilityHint("פותח את ההבהרה המלאה")
+        .accessibilityIdentifier("disclaimer")
+        .sheet(isPresented: $showingDisclaimer) { DisclaimerSheet() }
     }
 
     // MARK: Cards
@@ -541,5 +566,56 @@ private extension View {
                         .minimumScaleFactor(0.7)
                 }
             }
+    }
+}
+
+// MARK: Disclaimer
+
+/// What the results are and are not. One wording for the screen, the
+/// shared image and the full text.
+enum Disclaimer {
+    static let short = "החישוב הוא הערכה בלבד ואינו מהווה ייעוץ פיננסי או הצעה לאשראי. התנאים בפועל נקבעים על ידי הגוף המלווה."
+
+    static let points = [
+        "החישובים באפליקציה הם הערכה בלבד, לצורכי המחשה. הם אינם מהווים ייעוץ פיננסי, ייעוץ השקעות או המלצה, ואינם הצעה או התחייבות למתן אשראי.",
+        "התנאים בפועל, כולל הריבית, התשלום החודשי והעלות הכוללת, נקבעים על ידי הגוף המלווה ותלויים בנתוני הלווה. הם עשויים להיות שונים מהתוצאה כאן.",
+        "נתון המדד מגיע מהלשכה המרכזית לסטטיסטיקה ומשקף את 12 החודשים האחרונים. הוא עשוי להתעדכן באיחור או להיות שגוי. המדד העתידי אינו ידוע, ולכן כל חישוב צמוד מדד הוא אומדן.",
+        "ייתכנו הבדלים בגלל עיגול, שיטות חישוב שונות, עמלות ותנאים שאינם נכללים בחישוב.",
+        "האפליקציה אינה מציעה הלוואות ואינה קשורה לאף גוף מלווה.",
+        "השימוש באפליקציה הוא באחריות המשתמש בלבד. המפתח אינו אחראי לכל החלטה או נזק הנובעים מהשימוש בתוצאות. לפני קבלת החלטה, פנו לגוף המלווה או ליועץ מוסמך.",
+    ]
+
+    static let termsURL = URL(string: "https://m4r53l.github.io/loan-calculator/privacy.html#terms")!
+}
+
+/// The full disclaimer, opened from the line under the results
+private struct DisclaimerSheet: View {
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 14) {
+                    ForEach(Disclaimer.points, id: \.self) { point in
+                        HStack(alignment: .firstTextBaseline, spacing: 8) {
+                            Text("•")
+                            Text(point)
+                        }
+                    }
+                    Link("תנאי השימוש ומדיניות הפרטיות", destination: Disclaimer.termsURL)
+                        .padding(.top, 4)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(20)
+            }
+            .navigationTitle("הבהרה")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("סגירה") { dismiss() }
+                }
+            }
+        }
+        .presentationDetents([.medium, .large])
     }
 }

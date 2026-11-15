@@ -53,7 +53,7 @@ struct LoanShareCard: View {
             card { details }
             card { CostSummary(result: result) }
 
-            Text("התוצאות הן הערכה. ההצעה בפועל תלויה בלווה ועשויה להיות שונה.")
+            Text(Disclaimer.short)
                 .font(.caption2)
                 .foregroundStyle(.secondary)
                 .padding(.horizontal, 4)
