@@ -96,6 +96,15 @@ struct CalculatorView: View {
                 }
             }
             .animation(.snappy(duration: 0.25), value: heroVisible)
+            // Tapping a field selects its number, so typing replaces it.
+            // Deferred a turn: UIKit places the cursor after this fires, and
+            // the whole-shekel fields drop their separators on focus.
+            .onReceive(NotificationCenter.default.publisher(
+                for: UITextField.textDidBeginEditingNotification
+            )) { note in
+                guard let field = note.object as? UITextField else { return }
+                Task { @MainActor in field.selectAll(nil) }
+            }
             .sensoryFeedback(.selection, trigger: ticks)
             .sensoryFeedback(.selection, trigger: store.track)
             .sensoryFeedback(.selection, trigger: store.mode)
@@ -351,6 +360,8 @@ private struct InputCell: View {
     let field: CalculatorView.Field
     var focus: FocusState<CalculatorView.Field?>.Binding
     var keyboard: UIKeyboardType = .numberPad
+    /// Fits about seven digits, such as "12.25" or "10,000"
+    @ScaledMetric(relativeTo: .body) private var fieldWidth: CGFloat = 76
 
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
@@ -360,17 +371,24 @@ private struct InputCell: View {
                 .lineLimit(1)
                 .minimumScaleFactor(0.8)
             HStack(spacing: 4) {
+                // A fixed width, not one sized to the text: a field that grows
+                // a frame behind each typed digit scrolls the number out of
+                // view and stays scrolled.
                 TextField(label, text: $text, prompt: Text("0"))
                     .keyboardType(keyboard)
+                    .multilineTextAlignment(.trailing)
                     .monospacedDigit()
                     .fontWeight(.medium)
                     .focused(focus, equals: field)
                     .labelsHidden()
-                    .fixedSize()
+                    .frame(width: fieldWidth)
                     .accessibilityIdentifier("field.\(field)")
                 Text(unit)
                     .foregroundStyle(.secondary)
             }
+            // Numbers read left to right. In the app's right-to-left layout
+            // the cursor sat on the left of the digits, so typing landed there.
+            .environment(\.layoutDirection, .leftToRight)
             .frame(minHeight: 31) // lines up with the toggle in the next cell
             if let error {
                 Text(error)

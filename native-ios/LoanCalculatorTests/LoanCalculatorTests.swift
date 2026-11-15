@@ -1,5 +1,4 @@
 import Foundation
-import PDFKit
 import Testing
 @testable import LoanCalculator
 
@@ -109,24 +108,6 @@ struct BorrowTests {
             repaymentType: .balloon) == nil)
         #expect(LoanCalculator.principal(
             forMonthlyPayment: 0, prime: 4, margin: 2, months: 24) == nil)
-    }
-}
-
-struct ReportTests {
-    @Test func pdfHasEveryMonth() throws {
-        let loan = LoanCalculator.calculate(
-            principal: 50000, prime: 4.75, margin: 6.75, months: 100, fee: 490,
-            annualInflationPercent: 3)
-        let data = LoanReport(result: loan).pdfData()
-        let pdf = try #require(PDFDocument(data: data))
-        // Pass TEST_RUNNER_SHOTS=<folder> to keep a copy to look at
-        if let dir = ProcessInfo.processInfo.environment["SHOTS"] {
-            try data.write(to: URL(fileURLWithPath: dir).appendingPathComponent("report.pdf"))
-        }
-        #expect(pdf.pageCount >= 2)
-        let text = pdf.string ?? ""
-        #expect(text.contains("100"))
-        #expect(text.contains("50,000.00"))
     }
 }
 

@@ -38,6 +38,22 @@ final class LoanCalculatorUITests: XCTestCase {
         shot("1-top")
     }
 
+    /// Tapping a field selects its number, so what is typed replaces it
+    func testTypingReplacesTheRate() {
+        XCTAssertTrue(hero.waitForExistence(timeout: 5))
+        let cases = [("field.prime", "5.5", "5.5"), ("field.margin", "12.25", "12.25"),
+                     ("field.fee", "1500", "1500")]
+        for (id, typed, expected) in cases {
+            let field = app.textFields[id]
+            scroll(to: field)
+            field.tap()
+            shot("rate-\(id)-selected")
+            field.typeText(typed)
+            XCTAssertEqual(field.value as? String, expected)
+            shot("rate-\(id)-typed")
+        }
+    }
+
     func testPaymentBarAppearsOnceHeadlineScrollsAway() {
         XCTAssertTrue(hero.waitForExistence(timeout: 5))
         // Linkage and a saved comparison make the page long enough to scroll
@@ -85,18 +101,6 @@ final class LoanCalculatorUITests: XCTestCase {
         XCTAssertTrue(hero.label.contains("45,469"), hero.label)
         XCTAssertTrue(app.staticTexts["תשלום חודשי רצוי"].exists)
         shot("4-borrow")
-    }
-
-    func testScheduleListsEveryMonth() {
-        let link = app.buttons["לוח סילוקין"]
-        scroll(to: link)
-        shot("5-costs")
-        link.tap()
-        XCTAssertTrue(app.navigationBars["לוח סילוקין"].waitForExistence(timeout: 3))
-        XCTAssertTrue(app.staticTexts["חודש 1"].exists)
-        shot("6-schedule")
-        app.navigationBars.buttons.firstMatch.tap()
-        XCTAssertTrue(link.waitForExistence(timeout: 3))
     }
 
     func testInvalidAmountExplainsItselfAndResetRecovers() {

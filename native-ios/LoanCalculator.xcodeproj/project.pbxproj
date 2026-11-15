@@ -10,12 +10,10 @@
 		221B50176C9AC6AC2201E14A /* LoanCalculatorApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = D35FF49FC9EC16382558F582 /* LoanCalculatorApp.swift */; };
 		2CA3F49F9CD5E72154A478EB /* Localizable.strings in Resources */ = {isa = PBXBuildFile; fileRef = 6E73937695A5742B249FF68D /* Localizable.strings */; };
 		2CDB9317E0E8FB1D7246A413 /* CalculatorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3E8F2CB39555A3F34FD6DD5F /* CalculatorView.swift */; };
-		348869F26EB7B256D6E2832B /* ScheduleView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E036C7CFCC08CDD4738631FD /* ScheduleView.swift */; };
 		3ABC5B4B2FD04E96FE840109 /* LoanStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5EE75AD1871FA0A322063A92 /* LoanStore.swift */; };
 		518D738114A07B3E70F80375 /* ResultSections.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC925D74AC3B220352989AD6 /* ResultSections.swift */; };
 		6B8EB37ECF04B08304D36B7A /* Format.swift in Sources */ = {isa = PBXBuildFile; fileRef = EDB50200E9EFD4ADD495171E /* Format.swift */; };
 		96F118D43E4CBACFAA208E09 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 4CAA5C8CA7E8909FF691CC3E /* Assets.xcassets */; };
-		AA757C6A3E542ABE826BC001 /* LoanReport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2A12865FB67A34BA7363D836 /* LoanReport.swift */; };
 		BB8F17A5EF6CB3AA4B832DD0 /* LoanCalculatorUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1D93F5DA6C4F5C2263F7524 /* LoanCalculatorUITests.swift */; };
 		C18CD5C2DA90F6E3160FDFAD /* LoanCalculator.swift in Sources */ = {isa = PBXBuildFile; fileRef = C99EFF76765E5A6FE86FEFD7 /* LoanCalculator.swift */; };
 		DA24B7442C224D7B5BAD1314 /* LoanCalculatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 716576F3F1288021AF52634D /* LoanCalculatorTests.swift */; };
@@ -42,7 +40,6 @@
 /* Begin PBXFileReference section */
 		0A8EA31626B698AE4B53FAD5 /* LoanCalculator.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = LoanCalculator.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		1936C977356D97B3A15976C2 /* he */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = he; path = he.lproj/Localizable.strings; sourceTree = "<group>"; };
-		2A12865FB67A34BA7363D836 /* LoanReport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoanReport.swift; sourceTree = "<group>"; };
 		3E8F2CB39555A3F34FD6DD5F /* CalculatorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalculatorView.swift; sourceTree = "<group>"; };
 		411C0ED42581BDF343ED4FE2 /* Config.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Config.xcconfig; sourceTree = "<group>"; };
 		4CAA5C8CA7E8909FF691CC3E /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
@@ -54,7 +51,6 @@
 		AC925D74AC3B220352989AD6 /* ResultSections.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ResultSections.swift; sourceTree = "<group>"; };
 		C99EFF76765E5A6FE86FEFD7 /* LoanCalculator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoanCalculator.swift; sourceTree = "<group>"; };
 		D35FF49FC9EC16382558F582 /* LoanCalculatorApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoanCalculatorApp.swift; sourceTree = "<group>"; };
-		E036C7CFCC08CDD4738631FD /* ScheduleView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScheduleView.swift; sourceTree = "<group>"; };
 		E1D93F5DA6C4F5C2263F7524 /* LoanCalculatorUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoanCalculatorUITests.swift; sourceTree = "<group>"; };
 		EDB50200E9EFD4ADD495171E /* Format.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Format.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -115,10 +111,8 @@
 				C99EFF76765E5A6FE86FEFD7 /* LoanCalculator.swift */,
 				D35FF49FC9EC16382558F582 /* LoanCalculatorApp.swift */,
 				AB88BB209529969DAB05217C /* LoanHero.swift */,
-				2A12865FB67A34BA7363D836 /* LoanReport.swift */,
 				5EE75AD1871FA0A322063A92 /* LoanStore.swift */,
 				AC925D74AC3B220352989AD6 /* ResultSections.swift */,
-				E036C7CFCC08CDD4738631FD /* ScheduleView.swift */,
 				6E73937695A5742B249FF68D /* Localizable.strings */,
 			);
 			path = LoanCalculator;
@@ -261,10 +255,8 @@
 				C18CD5C2DA90F6E3160FDFAD /* LoanCalculator.swift in Sources */,
 				221B50176C9AC6AC2201E14A /* LoanCalculatorApp.swift in Sources */,
 				FD75080F38835683D285960D /* LoanHero.swift in Sources */,
-				AA757C6A3E542ABE826BC001 /* LoanReport.swift in Sources */,
 				3ABC5B4B2FD04E96FE840109 /* LoanStore.swift in Sources */,
 				518D738114A07B3E70F80375 /* ResultSections.swift in Sources */,
-				348869F26EB7B256D6E2832B /* ScheduleView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

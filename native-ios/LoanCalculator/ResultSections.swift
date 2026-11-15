@@ -5,7 +5,6 @@ import SwiftUI
 struct ResultSections: View {
     let result: LoanResult
     let store: LoanStore
-    @State private var showingSchedule = false
 
     private static let twoColumns = [
         GridItem(.flexible(), spacing: 16, alignment: .topLeading),
@@ -176,16 +175,6 @@ struct ResultSections: View {
 
     private var actions: some View {
         HStack(spacing: 8) {
-            Button {
-                showingSchedule = true
-            } label: {
-                actionLabel("לוח סילוקין")
-            }
-
-            ShareLink(item: LoanReport(result: result), preview: SharePreview("סיכום הלוואה")) {
-                actionLabel("שיתוף")
-            }
-
             if store.saved == nil {
                 Button {
                     withAnimation(.snappy) { store.saved = SavedScenario(result) }
@@ -206,9 +195,6 @@ struct ResultSections: View {
             }
         }
         .buttonStyle(.bordered)
-        .navigationDestination(isPresented: $showingSchedule) {
-            ScheduleView(result: result)
-        }
     }
 
     private func actionLabel(_ title: String) -> some View {
