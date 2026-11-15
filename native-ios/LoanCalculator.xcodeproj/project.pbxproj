@@ -13,6 +13,7 @@
 		2CDB9317E0E8FB1D7246A413 /* CalculatorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3E8F2CB39555A3F34FD6DD5F /* CalculatorView.swift */; };
 		2D72D4EDDEE2C839F090FBE8 /* CostSummary.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6DCD3EBF2FD236FDFB2C0187 /* CostSummary.swift */; };
 		3ABC5B4B2FD04E96FE840109 /* LoanStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5EE75AD1871FA0A322063A92 /* LoanStore.swift */; };
+		407FEF1CE90DD12A917F9E5D /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 9646363929AC4485C1232B52 /* PrivacyInfo.xcprivacy */; };
 		59DC26C205598BDFAAD3FE90 /* LoanImage.swift in Sources */ = {isa = PBXBuildFile; fileRef = BED52041923708F6D2872FA8 /* LoanImage.swift */; };
 		6B8EB37ECF04B08304D36B7A /* Format.swift in Sources */ = {isa = PBXBuildFile; fileRef = EDB50200E9EFD4ADD495171E /* Format.swift */; };
 		96F118D43E4CBACFAA208E09 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 4CAA5C8CA7E8909FF691CC3E /* Assets.xcassets */; };
@@ -50,6 +51,7 @@
 		6DCD3EBF2FD236FDFB2C0187 /* CostSummary.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CostSummary.swift; sourceTree = "<group>"; };
 		716576F3F1288021AF52634D /* LoanCalculatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoanCalculatorTests.swift; sourceTree = "<group>"; };
 		8EBF22FCEB11289F2C3232DF /* LoanCalculatorTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = LoanCalculatorTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		9646363929AC4485C1232B52 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		AA015EF517FE8E9DB39C80F4 /* LoanCalculatorUITests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = LoanCalculatorUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		AB88BB209529969DAB05217C /* LoanHero.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoanHero.swift; sourceTree = "<group>"; };
 		BED52041923708F6D2872FA8 /* LoanImage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoanImage.swift; sourceTree = "<group>"; };
@@ -121,6 +123,7 @@
 				AB88BB209529969DAB05217C /* LoanHero.swift */,
 				BED52041923708F6D2872FA8 /* LoanImage.swift */,
 				5EE75AD1871FA0A322063A92 /* LoanStore.swift */,
+				9646363929AC4485C1232B52 /* PrivacyInfo.xcprivacy */,
 				F8D2D04B812D01A7054ABA67 /* RollingDigits.swift */,
 				6E73937695A5742B249FF68D /* Localizable.strings */,
 			);
@@ -233,6 +236,7 @@
 			files = (
 				96F118D43E4CBACFAA208E09 /* Assets.xcassets in Resources */,
 				2CA3F49F9CD5E72154A478EB /* Localizable.strings in Resources */,
+				407FEF1CE90DD12A917F9E5D /* PrivacyInfo.xcprivacy in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -367,6 +371,8 @@
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = "מחשבון הלוואה";
+				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.finance";
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
@@ -506,6 +512,8 @@
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = "מחשבון הלוואה";
+				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.finance";
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";

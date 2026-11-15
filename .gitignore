@@ -10,3 +10,6 @@ xcuserdata/
 
 # Local signing team (see README)
 native-ios/Local.xcconfig
+
+# App Store submission material (local only)
+app-store/
