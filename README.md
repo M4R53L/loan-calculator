@@ -1,28 +1,37 @@
-# Bank Loan Calculator
+# Loan Calculator
 
-A Hebrew loan calculator for Israeli consumer and car loans, priced as Prime plus a margin. The limits and repayment tracks follow the loans Mimun Yashir offers: 15,000 to 400,000 ₪ over 12 to 100 months.
+I vibe-coded this app so we could use it in our company.
 
-It is a native SwiftUI app for iPhone and iPad, iOS 17 or later, in `native-ios/`.
+Almost every customer we talk to asks about a loan, and the first question is always "how much will it cost me each month?" We never had a quick answer. The customer had to wait while one of us walked to the office, opened the lender's website, logged into our account and filled in a form just to get a quote. It took way too long, and sometimes the moment was gone by the time we came back.
 
-It works offline. The Prime rate is a number you type in; the default is 4.75%, as of November 2026.
+So I built this. The idea is that anyone on the sales team, or the managers, can pull out their phone and give the customer a real number right there, standing between the cars, in the middle of the conversation.
 
-The one thing it fetches is the consumer price index, from the Central Bureau of Statistics' public API (`api.cbs.gov.il`, no key needed), at most twice a day. The CPI-linkage field then starts at the change over the last 12 months, labelled with the month it is for, such as "הלמ״ס 9/2026". Nothing is sent. Without a connection the field keeps its last value, 3% before the first fetch, and a rate you type yourself is never replaced.
+The app is in Hebrew and built around the car and consumer loans we offer through Mimun Yashir: Prime plus a margin, 15,000 to 400,000 ₪, 12 to 100 months.
 
-## What it calculates
+## What it does
 
-- **Monthly payment** for a loan amount, term and rate
-- **Repayment tracks**
-  - Spitzer (שפיצר): the same payment every month
-  - Balloon (בלון): interest only each month, the whole principal in the last payment
-  - Grace (גרייס): no payments for the first 3 months, then the loan and the accrued interest over the rest of the term
-- **Effective annual cost of credit**
-- **CPI linkage**, on by default, from the published 12-month CPI change or an inflation rate you estimate
-- **How much can I borrow**: enter the monthly payment you can afford and get the loan amount
-- **Share as an image**: a PNG of the result, drawn in the app's own design, through the share sheet
+You enter the loan amount, the number of months and the margin over Prime, and the monthly payment shows up straight away. From there you can:
 
-## Running the app
+- Switch between the three repayment tracks:
+  - **Spitzer (שפיצר)**: the same payment every month. This is what most customers get.
+  - **Balloon (בלון)**: interest only each month, and the whole principal at the end.
+  - **Grace (גרייס)**: nothing to pay for the first 3 months, then the loan plus the interest that built up is spread over the rest of the term.
+- See the total cost and the effective annual cost of credit.
+- Turn CPI linkage on or off (it's on by default).
+- Flip it around: when a customer says "I can pay 1,500 a month", type that in and the app tells you how much they can borrow.
+- Share the result as an image, straight to WhatsApp or wherever, so the customer has it in writing.
 
-Requires Xcode 16 or later.
+## Good to know
+
+- **It works without internet.** You can use it in the yard with bad reception.
+- **The Prime rate is typed in by hand.** The default is 4.75% (November 2026). When the Bank of Israel changes it, update it in the app.
+- **CPI comes from the Central Bureau of Statistics.** When there's a connection, the app grabs the last 12 months' change in the consumer price index from the CBS public API (`api.cbs.gov.il`, no key needed), at most twice a day. The field shows which month the number is from, for example "הלמ״ס 9/2026". If there's no connection it keeps the last value it had (1.6% before the first fetch). If you type in your own rate, it won't overwrite it.
+- **Nothing about customers is sent or saved anywhere.** The CPI request is the only thing the app does online.
+- **These are estimates.** The final offer from the lender depends on the customer and can be different. Tell the customer that.
+
+## Running it
+
+It's a native SwiftUI app for iPhone and iPad, iOS 17 or later. You need a Mac with Xcode 16 or newer.
 
 ```bash
 open native-ios/LoanCalculator.xcodeproj
@@ -30,19 +39,19 @@ open native-ios/LoanCalculator.xcodeproj
 
 Pick a simulator and press Run.
 
-To run on a real iPhone, create `native-ios/Local.xcconfig` with your Apple team ID. Git ignores this file, so the ID stays out of the repo.
+To put it on a real iPhone, create a file called `native-ios/Local.xcconfig` with your Apple team ID in it. Git ignores this file, so your ID doesn't end up in the repo.
 
 ```
 DEVELOPMENT_TEAM = YOUR_TEAM_ID
 ```
 
-The Xcode project is generated from `native-ios/project.yml` with [XcodeGen](https://github.com/yonaskolb/XcodeGen). After adding or removing files outside Xcode, regenerate it:
+The Xcode project is generated from `native-ios/project.yml` with [XcodeGen](https://github.com/yonaskolb/XcodeGen). If you add or remove files outside Xcode, regenerate it:
 
 ```bash
 cd native-ios && xcodegen generate
 ```
 
-## Tests
+### Tests
 
 ```bash
 cd native-ios
@@ -50,11 +59,11 @@ xcodebuild test -project LoanCalculator.xcodeproj -scheme LoanCalculator \
   -destination 'platform=iOS Simulator,name=iPhone 17 Pro Max'
 ```
 
-This runs the unit tests for the calculations and the UI tests that drive the app. To keep screenshots from the UI tests, add `TEST_RUNNER_SHOTS=/some/folder` before `xcodebuild`.
+This runs the unit tests for the math and the UI tests that click through the app. To keep the screenshots the UI tests take, put `TEST_RUNNER_SHOTS=/some/folder` in front of the command.
 
-## How the payment is calculated
+## How the math works
 
-Spitzer uses the standard annuity formula:
+Spitzer is the standard annuity formula:
 
 ```
 PMT = P × r / (1 − (1 + r)^(−n))
@@ -64,25 +73,27 @@ r = monthly rate = (Prime + margin) / 100 / 12
 n = number of months
 ```
 
-Every track is simulated month by month: the balance is indexed for inflation if the loan is CPI-linked, interest is charged on it, and the payment for that track is taken off.
+Every track is run month by month: if the loan is CPI-linked the balance is indexed first, then interest is added, then that month's payment is taken off.
 
-The effective annual cost is the rate at which the money you actually receive (the loan minus the fee) equals the present value of all the payments, compounded to a year.
+The effective annual cost is the rate at which the money the customer actually gets (loan minus fees) equals the present value of all the payments, compounded over a year.
 
-### Checked against
+Before trusting it with customers I checked it against numbers I already knew:
 
-- 76,500 ₪ at 9.1% for 60 months: 1,591.73 ₪ a month
-- 20,000 ₪ at 7% for 48 months: 478.92 ₪ a month
-- 50,000 ₪ at 6.7% for 60 months: 983.00 ₪ a month
-- Mimun Yashir's published example: 30,000 ₪ at 8.5% over 55 payments with a 490 ₪ fee gives 660.51 ₪ a month, 36,817 ₪ in total, and an effective cost of 9.66%. The app no longer asks for a fee, but the calculation still takes one, to keep this check.
+| Loan | Rate | Months | Monthly payment |
+|---|---|---|---|
+| 76,500 ₪ | 9.1% | 60 | 1,591.73 ₪ |
+| 20,000 ₪ | 7% | 48 | 478.92 ₪ |
+| 50,000 ₪ | 6.7% | 60 | 983.00 ₪ |
 
-## Layout
+I also checked it against Mimun Yashir's own published example: 30,000 ₪ at 8.5% over 55 payments with a 490 ₪ fee comes to 660.51 ₪ a month, 36,817 ₪ in total, and an effective cost of 9.66%. The app doesn't ask for a fee anymore, but the calculation still supports one so this check keeps passing.
+
+## Project layout
 
 ```
 native-ios/
   project.yml               XcodeGen definition
-  LoanCalculator/           app: calculator, store, views
+  LoanCalculator/           the app: calculations, state, screens
   LoanCalculatorTests/      unit tests
   LoanCalculatorUITests/    UI tests
 ```
 
-The results are estimates. A lender's actual offer depends on the borrower and can differ.

@@ -29,7 +29,7 @@ final class LoanStore {
         static let months = "60"
         static let prime = "4.75"
         static let margin = "6.75"
-        static let inflation = "3"
+        static let inflation = "1.6"
         /// Most consumer loans are linked, so the switch starts on
         static let cpiLinked = true
         /// When the default prime rate was last checked
