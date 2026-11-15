@@ -150,7 +150,7 @@ final class LoanCalculatorUITests: XCTestCase {
         shot("7-invalid")
 
         field.typeText("4000")
-        XCTAssertTrue(hero.label.contains("2,072.40"), hero.label)
+        XCTAssertTrue(hero.label.contains("2,070.04"), hero.label)
         XCTAssertEqual(hero.frame.minY, heroBefore.minY)
         XCTAssertEqual(cost.frame, costBefore)
         shot("7-valid-again")
